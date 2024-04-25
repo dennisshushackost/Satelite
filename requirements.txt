@@ -1,0 +1,9 @@
+matplotlib
+geopandas
+rasterio
+scikit-learn
+scipy
+tensorflow_datasets
+ipykernel
+eodal
+scikit-image
