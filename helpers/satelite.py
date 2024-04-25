@@ -202,6 +202,10 @@ class ProcessSatelite():
 
     
     def normalize_bands(self, src):
+        """ 
+        This function normalises the bands of the satellite image.
+        It clips the pixel values between the 1st and 99th percentile and scales them between 0 and 1.
+        """
         bands_normalized = []
         for i in range(1, src.count + 1):
             band = src.read(i)
@@ -211,6 +215,9 @@ class ProcessSatelite():
         return bands_normalized     
     
     def process_and_save_normalized_image(self, input_path):
+        """ 
+        This function processes the normalized bands and saves the image to a new file.
+        """
         with rasterio.open(input_path, 'r') as src:
             # Read and normalize all bands first
             bands_normalized = self.normalize_bands(src)
@@ -223,7 +230,6 @@ class ProcessSatelite():
             with rasterio.open(input_path, 'w', **new_meta) as dst:
                 for i, band in enumerate(bands_normalized, start=1):
                     dst.write(band, i)
-
 
     def select_min_coverage_scene(self):
         """
