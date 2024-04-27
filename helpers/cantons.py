@@ -98,7 +98,7 @@ class Cantons():
             gdf.to_file(self.parcels_path/ f'{self.canton_name}_parcel_{index}.gpkg', driver="GPKG")
         # Save the grid as a GeoDataFrame:
         self.grid['grid_index'] = range(len(self.grid))
-        self.grid.to_file(self.grid_path / 'grid.gpkg', driver="GPKG")
+        self.grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
 
     def remove_non_significant_geodataframes(self):
         """

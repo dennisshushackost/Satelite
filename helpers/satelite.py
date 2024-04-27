@@ -5,6 +5,7 @@ import numpy as np
 import rasterio
 import warnings 
 import os
+from rasterio.windows import Window
 from rasterio.enums import Resampling
 from datetime import datetime
 from eodal.config import get_settings
@@ -55,7 +56,7 @@ class ProcessSatelite():
         self.mapper = None
         self.scene = None
         self.output_path_satellite = self.create_folders()
-        self.grid = gpd.read_file(self.output_path_grid / 'grid.gpkg')
+        self.grid = gpd.read_file(self.output_path_grid / f'{self.canton_name}_grid.gpkg')
         self.parcel_name = f'{self.canton_name}_parcel_{self.parcel_index}'
         self.parcel = gpd.read_file(self.output_path_gdf / f'{self.parcel_name}.gpkg')
         self.grid_index = self.parcel['grid_index'][0]
@@ -111,47 +112,48 @@ class ProcessSatelite():
     
     def crop_or_pad_image(self, file_path):
         """
-        This function either crops or pads the image to the target size.
+        Crops or pads the image to the target size.
         """
         with rasterio.open(file_path) as src:
-            data = src.read()  
+            data = src.read()
             height, width = data.shape[1], data.shape[2]
 
             if height > self.target_size or width > self.target_size:
                 print("Cropping the image")
-                # Center crop the image
+                # Cropping if image is too large:
                 start_y = max(0, (height - self.target_size) // 2)
                 start_x = max(0, (width - self.target_size) // 2)
-                end_y = start_y + self.target_size
-                end_x = start_x + self.target_size
-                data_cropped = data[:, start_y:end_y, start_x:end_x]
+                data_cropped = data[:, start_y:start_y + self.target_size, start_x:start_x + self.target_size]
+                # Adjust the spatial reference of the image to the new window (start_x, start_y, target_size, target_size)
+                transform = rasterio.windows.transform(Window(start_x, start_y, self.target_size, self.target_size), src.transform)
             elif height < self.target_size or width < self.target_size:
                 print("Padding the image")
-                # Pad the image
+                # Padding if the image is too small:
                 pad_height = (self.target_size - height) // 2
                 pad_width = (self.target_size - width) // 2
-                data_cropped = np.pad(data, pad_width=((0, 0), (pad_height, pad_height + (self.target_size - height - 2*pad_height)), (pad_width, pad_width + (self.target_size - width - 2*pad_width))), mode='constant', constant_values=0)
+                data_cropped = np.pad(data, pad_width=((0, 0), (pad_height, self.target_size - height - pad_height), (pad_width, self.target_size - width - pad_width)), mode='constant', constant_values=0)
+                transform = src.transform * src.transform.translation(-pad_width, -pad_height)
             else:
-                print("Image is already of the target size")
-                return
+                return  
 
-            # Update metadata for output file
+            # Update metadata
             new_meta = src.meta.copy()
             new_meta.update({
                 'driver': 'GTiff',
                 'height': self.target_size,
                 'width': self.target_size,
-                'transform': rasterio.windows.transform(rasterio.windows.Window(start_x, start_y, self.target_size, self.target_size), src.transform)
+                'transform': transform
             })
 
-            # Write the cropped or padded image to a new file
+            # Save the result to a new file
             with rasterio.open(file_path, 'w', **new_meta) as dst:
                 dst.write(data_cropped)
 
             
     def get_no_data_percentage(self, file_path):
         """
-        Returns the no data percentage of a raster image.
+        Removes all satelite images, which have a no data percentage above 10%.
+        This helps remove satelite images with clouds or other artifacts.
         """
         # Open the raster image
         with rasterio.open(file_path) as src:
@@ -172,7 +174,7 @@ class ProcessSatelite():
         Resample the image to the new resolution of 5m using bicubic interpolation.
         """
         with rasterio.open(path_file) as src:
-            scale = 2
+            scale = 4
             new_transform = src.transform * src.transform.scale(
                 (src.width / (src.width * scale)),
                 (src.height / (src.height * scale))
@@ -278,10 +280,11 @@ class ProcessSatelite():
             # Resample the image to the new resolution of 5m using bicubic interpolation
             self.resample_image(original_path)
 
-            # Check the no data percentage
-            #self.get_no_data_percentage(padded_path)
-
+            # Normalize the bands of the satellite image
             self.process_and_save_normalized_image(original_path)
+
+            # Remove all satelite images, which have a no data percentage above 10%
+            self.get_no_data_percentage(original_path)
             
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -292,8 +295,7 @@ if __name__ == '__main__':
     time_start: datetime = datetime(2023,6,1) 
     time_end: datetime = datetime(2023,7,31)   
     target_resolution = 10
-    parcel_index = 53
+    parcel_index = 27
     process = ProcessSatelite(data_path, time_start, time_end, target_resolution, parcel_index)
     process.create_satelite_mapper()
     process.select_min_coverage_scene()
-  
