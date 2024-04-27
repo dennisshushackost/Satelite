@@ -136,8 +136,3 @@ if __name__ == "__main__":
     cantons.create_grid()
     cantons.process_and_save_grid()
     cantons.remove_non_significant_geodataframes()
-
-
-        
-        
-
