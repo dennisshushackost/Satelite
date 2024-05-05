@@ -1,7 +1,8 @@
 """
-This script pre-processes the data for the satellite image analysis. It creates a grid of cells for each canton,
-extracts the parcels from the cantonal data, assigns them to the corresponding grid cell, and saves the grid and parcels as GeoDataFrames.
-It also removes non-significant GeoDataFrames, which includes removing any parcels within each GeoDataFrame that are smaller than 5000 square meters,
+This script pre-processes the data for the satellite image analysis. It creates a grid of
+cells for each canton, extracts the parcels from the cantonal data, assigns them to the
+corresponding grid cell, and saves the grid and parcels as GeoDataFrames.It also removes
+non-significant GeoDataFrames, which includes removing any parcels within each GeoDataFrame that are smaller than 5000 square meters,
 and then removing any GeoDataFrames that do not meet the area threshold or contain no significant parcels.
 The script then processes the satellite images and creates a mask with parcel borders in white and interiors in black for deep learning.
 """
@@ -67,3 +68,5 @@ if __name__ == "__main__":
         process_canton(canton)
         process_satelite(canton)
         create_mask(canton)
+
+

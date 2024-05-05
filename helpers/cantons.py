@@ -7,7 +7,8 @@ from shapely.geometry import box
 # ignore warnings
 warnings.filterwarnings('ignore')
 
-class Cantons():
+
+class Cantons:
     """
     Processes the cantonal data by dividing the given canton
     into 2km x 2km grids and extracting the corresponding parcels.
@@ -19,7 +20,7 @@ class Cantons():
     """
 
     def __init__(self, data_path, cell_size=2500, threshold=0.1):
-        
+
         self.data_path = Path(data_path)
         self.canton_name = self.data_path.stem
         self.cell_size = cell_size
@@ -30,7 +31,7 @@ class Cantons():
         self.xmin, self.ymin, self.xmax, self.ymax = self.data.total_bounds
         self.grid = None
         self.create_folders()
-        
+
     def create_folders(self):
         """
         Creates the necessary folders for the data.
@@ -48,15 +49,17 @@ class Cantons():
         """
         self.data = self.data.copy()
         # Simplify the geometries
-        self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
+        self.data['geometry'] = (self.data['geometry'].
+                                 simplify(tolerance=5, preserve_topology=True))
         # Ensure all geometries are valid, fix if not
         self.data['geometry'] = (self.data['geometry'].
                                  apply(lambda geom: geom if geom.is_valid else geom.buffer(0)))
-        return self.data 
+        return self.data
 
     def create_grid(self):
         """
-        Creates a grid based on the defined width and height, covering the extend of the canton data.
+        Creates a grid based on the defined width and height,
+        covering the extend of the canton data.
         """
         # Calculates the number of full 1.5km x 1.5km cells that fit in the canton
         cols = int((self.xmax - self.xmin) / self.cell_size)
@@ -80,14 +83,16 @@ class Cantons():
         Processes the grid, extracts parcels from the cantonal data, assigns them to
         the corresponding grid cell, and saves the grid and parcels as GeoDataFrames.
         """
-        # Initalise an empty list to store the GeoDataFrames:
+        # Initialize an empty list to store the GeoDataFrames:
         parcel_gdfs = []
 
-        for i, cell in self.grid.iterrows():       
-            # Extract the parcels that are within the grid cell using spatial join: (inner = only the ones that
+        for i, cell in self.grid.iterrows():
+            # Extract the parcels that are within the grid cell using spatial join:
+            # (inner = only the ones that
             # intersect with the cell)
-            parcel_data = gpd.sjoin(self.data, gpd.GeoDataFrame([cell],
-                                                                columns=['geometry'], crs=self.crs),
+            parcel_data = gpd.sjoin(self.data,
+                                    gpd.GeoDataFrame([cell],
+                                                     columns=['geometry'], crs=self.crs),
                                     how='inner', predicate='intersects')
             # Clip the polygons to the cell boundaries:
             parcel_data['geometry'] = parcel_data.geometry.intersection(cell.geometry)
@@ -99,20 +104,23 @@ class Cantons():
                 parcel_gdfs.append(parcel_data)
 
         for index, gdf in enumerate(parcel_gdfs):
-            gdf.to_file(self.parcels_path/ f'{self.canton_name}_parcel_{index}.gpkg', driver="GPKG")
+            gdf.to_file(self.parcels_path /
+                        f'{self.canton_name}_parcel_{index}.gpkg', driver="GPKG")
         # Save the grid as a GeoDataFrame:
         self.grid['grid_index'] = range(len(self.grid))
-        self.grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
+        self.grid.to_file(self.grid_path /
+                          f'{self.canton_name}_grid.gpkg', driver="GPKG")
 
     def remove_non_significant_geodataframes(self):
         """
-        Removes GeoDataFrames that are not significant. This includes removing any parcels within
-        each GeoDataFrame that are smaller than 5000 square meters, and then removing any GeoDataFrames
-        that do not meet the area threshold or contain no significant parcels.
+        Removes GeoDataFrames that are not significant. This includes removing any parcels
+        within each GeoDataFrame that are smaller than 5000 square meters,
+        and then removing any GeoDataFrames that do not meet the area threshold or
+        contain no significant parcels.
         """
         cell_area = self.cell_size ** 2
         min_area_threshold = cell_area * self.threshold
-    
+
         gdf_files = list(self.parcels_path.glob(f"{self.canton_name}_parcel_*.gpkg"))
         significant_files = []
 
@@ -120,7 +128,7 @@ class Cantons():
             gdf = gpd.read_file(gdf_file)
             # Filter out small parcels within each GeoDataFrame
             gdf = gdf[gdf['geometry'].area >= 5000]
-            
+
             if not gdf.empty:
                 parcel_area = gdf.geometry.area.sum()  # Sum area of all geometries in the GeoDataFrame
 
@@ -132,11 +140,14 @@ class Cantons():
                     os.remove(gdf_file)  # Delete the file if it's not significant
             else:
                 os.remove(gdf_file)  # Delete the file if all parcels were too small
-        
-        print(f"Kept {len(significant_files)} significant GeoDataFrames and deleted the rest.")
+
+        print(f"Kept {len(significant_files)}"
+              f" significant GeoDataFrames and deleted the rest.")
+
 
 if __name__ == "__main__":
-    cantons = Cantons(data_path="/workspaces/Satelite/data/aargau.gpkg", cell_size=2500, threshold=0.1)
+    cantons = Cantons(data_path="/workspaces/Satelite/data/aargau.gpkg",
+                      cell_size=2500, threshold=0.1)
     cantons.create_grid()
     cantons.process_and_save_grid()
     cantons.remove_non_significant_geodataframes()
