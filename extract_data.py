@@ -13,22 +13,23 @@ from helpers.satelite import ProcessSatelite
 from helpers.mask import ProcessMask
 from pathlib import Path
 from datetime import datetime
-import re  
+import re
 
 list_of_cantons = ['AG']
 base_path = "/workspaces/Satelite/data"
 cell_size = 2500
 threshold = 0.1
-time_start: datetime = datetime(2023,6,1) 
-time_end: datetime = datetime(2023,7,31)   
+time_start: datetime = datetime(2023, 6, 1)
+time_end: datetime = datetime(2023, 7, 31)
 target_resolution = 10
-border_width= 0.1
+border_width = 0.1
 
 
 def process_canton(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     print("Processing canton: ", canton)
-    cantons = Cantons(data_path=path_gpkg, cell_size=cell_size, threshold=threshold)
+    cantons = Cantons(data_path=path_gpkg, cell_size=cell_size,
+                      threshold=threshold)
     cantons.create_grid()
     cantons.process_and_save_grid()
     cantons.remove_non_significant_geodataframes()
@@ -43,19 +44,21 @@ def process_satelite(canton: str):
     for parcel_file in parcels_files:
         print("Processing parcel: ", parcel_file.stem)
         parcel_index = int(re.findall(r'\d+', parcel_file.stem)[0])
-        process = ProcessSatelite(path_gpkg, time_start, time_end, target_resolution, parcel_index)
+        process = ProcessSatelite(path_gpkg, time_start, time_end,
+                                  target_resolution, parcel_index)
         process.create_satelite_mapper()
         process.select_min_coverage_scene()
 
-def create_mask(canton:str):
+
+def create_mask(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     path_images = f"{base_path}/satellite"
     satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*.tif"))
     satelite_images.sort()
-    for satelite_image in satelite_images:
-        print("Creating mask for image mask: ", satelite_image.stem)
-        parcel_index = int(re.findall(r'\d+', satelite_image.stem)[0])
-        process  = ProcessMask(path_gpkg, parcel_index)
+    for satellite_image in satelite_images:
+        print("Creating mask for image mask: ", satellite_image.stem)
+        parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
+        process = ProcessMask(path_gpkg, parcel_index)
         process.create_border_mask(border_width=border_width)
 
 

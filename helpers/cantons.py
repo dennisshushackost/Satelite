@@ -77,15 +77,18 @@ class Cantons():
 
     def process_and_save_grid(self):
         """
-        Processes the grid, extracts parcels from the cantonal data, assigns them to the corresponding grid cell,
-        and saves the grid and parcels as GeoDataFrames.
+        Processes the grid, extracts parcels from the cantonal data, assigns them to
+        the corresponding grid cell, and saves the grid and parcels as GeoDataFrames.
         """
         # Initalise an empty list to store the GeoDataFrames:
         parcel_gdfs = []
 
         for i, cell in self.grid.iterrows():       
-            # Extract the parcels that are within the grid cell using spatial join: (inner = only the ones that intersect with the cell)
-            parcel_data = gpd.sjoin(self.data, gpd.GeoDataFrame([cell], columns=['geometry'], crs=self.crs), how='inner', predicate='intersects')
+            # Extract the parcels that are within the grid cell using spatial join: (inner = only the ones that
+            # intersect with the cell)
+            parcel_data = gpd.sjoin(self.data, gpd.GeoDataFrame([cell],
+                                                                columns=['geometry'], crs=self.crs),
+                                    how='inner', predicate='intersects')
             # Clip the polygons to the cell boundaries:
             parcel_data['geometry'] = parcel_data.geometry.intersection(cell.geometry)
             # Remove the rows with empty geometries:
