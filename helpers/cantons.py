@@ -50,7 +50,8 @@ class Cantons():
         # Simplify the geometries
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         # Ensure all geometries are valid, fix if not
-        self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
+        self.data['geometry'] = (self.data['geometry'].
+                                 apply(lambda geom: geom if geom.is_valid else geom.buffer(0)))
         return self.data 
 
     def create_grid(self):
