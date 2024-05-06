@@ -14,11 +14,10 @@ class Cantons:
     into 2km x 2km grids and extracting the corresponding parcels.
 
     Attributes:
-        data_path (str): Path to the cantonal data (full path to the shapefile/geopandas dataframe)
-        cell_size (int): Size of the grid cells in meters (default=1500).
+        data_path (str): Path to the cantonal data (full path to the geopandas dataframe)
+        cell_size (int): Size of the grid cells in meters (default=2500).
         threshold (int): Minimum number of percentage covered by the polygons in the parcels.
     """
-
     def __init__(self, data_path, cell_size=2500, threshold=0.1):
 
         self.data_path = Path(data_path)
@@ -46,6 +45,8 @@ class Cantons:
     def simplify_data(self):
         """
         Simplifies and validates the geometries of the cantonal data.
+        A tolerance of 5 meters is used, as we are dealing with 10m resolution satellite data.
+        We add buffering in case the geometries are invalid after the simplification.
         """
         self.data = self.data.copy()
         # Simplify the geometries
@@ -59,7 +60,7 @@ class Cantons:
     def create_grid(self):
         """
         Creates a grid based on the defined width and height,
-        covering the extend of the canton data.
+        covering the extent of the cantonal geodataframe.
         """
         # Calculates the number of full 1.5km x 1.5km cells that fit in the canton
         cols = int((self.xmax - self.xmin) / self.cell_size)
@@ -88,8 +89,7 @@ class Cantons:
 
         for i, cell in self.grid.iterrows():
             # Extract the parcels that are within the grid cell using spatial join:
-            # (inner = only the ones that
-            # intersect with the cell)
+            # (inner = only the ones that intersect with the cell)
             parcel_data = gpd.sjoin(self.data,
                                     gpd.GeoDataFrame([cell],
                                                      columns=['geometry'], crs=self.crs),
@@ -130,7 +130,8 @@ class Cantons:
             gdf = gdf[gdf['geometry'].area >= 5000]
 
             if not gdf.empty:
-                parcel_area = gdf.geometry.area.sum()  # Sum area of all geometries in the GeoDataFrame
+                # Sum area of all geometries in the GeoDataFrame
+                parcel_area = gdf.geometry.area.sum()
 
                 if parcel_area >= min_area_threshold:
                     # Save the modified GeoDataFrame back to file
@@ -139,14 +140,14 @@ class Cantons:
                 else:
                     os.remove(gdf_file)  # Delete the file if it's not significant
             else:
-                os.remove(gdf_file)  # Delete the file if all parcels were too small
+                os.remove(gdf_file)
 
         print(f"Kept {len(significant_files)}"
               f" significant GeoDataFrames and deleted the rest.")
 
 
 if __name__ == "__main__":
-    cantons = Cantons(data_path="/workspaces/Satelite/data/aargau.gpkg",
+    cantons = Cantons(data_path="/project/Satelite/data/AG.gpkg",
                       cell_size=2500, threshold=0.1)
     cantons.create_grid()
     cantons.process_and_save_grid()

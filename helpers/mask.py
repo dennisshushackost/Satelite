@@ -1,11 +1,12 @@
-from pathlib import Path
-import geopandas as gpd
 import warnings
+from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
 import rasterio
 import rasterio.features
 from rasterio.features import rasterize
 from shapely.geometry import LineString, MultiPolygon, Polygon
-import numpy as np
 
 # ignore warnings
 warnings.filterwarnings('ignore')
@@ -96,32 +97,28 @@ class ProcessMask:
                 for poly in geom.geoms:
                     # Buffer the exterior
                     buffered_exterior = (LineString(list(poly.exterior.coords)).
-                                         buffer(buffer_width, resolution=16,
-                                                cap_style=3))
+                                         buffer(buffer_width))
                     border_shapes.append((buffered_exterior, 1))
                     # Buffer each interior boundary
                     for interior in poly.interiors:
                         buffered_interior = (LineString(list(interior.coords)).
-                                             buffer(buffer_width, resolution=16,
-                                                    cap_style=3))
+                                             buffer(buffer_width))
                         border_shapes.append((buffered_interior, 1))
             elif isinstance(geom, Polygon):
                 # Buffer the exterior
                 buffered_exterior = (LineString(list(geom.exterior.coords)).
-                                     buffer(buffer_width, resolution=16,
-                                            cap_style=3))
+                                     buffer(buffer_width))
                 border_shapes.append((buffered_exterior, 1))
                 # Buffer each interior boundary
                 for interior in geom.interiors:
                     buffered_interior = (LineString(list(interior.coords)).
-                                         buffer(buffer_width, resolution=16,
-                                                cap_style=3))
+                                         buffer(buffer_width))
                     border_shapes.append((buffered_interior, 1))
         return border_shapes
 
 
 if __name__ == '__main__':
-    data_path = '/workspaces/Satelite/data/aargau.gpkg'
+    data_path = '/project/Satelite/data/AG.gpkg'
     parcel_index = 27
     border_processor = ProcessMask(data_path, parcel_index)
     border_processor.create_border_mask(border_width=0.1)

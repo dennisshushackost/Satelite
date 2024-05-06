@@ -7,14 +7,13 @@ and then removing any GeoDataFrames that do not meet the area threshold or conta
 The script then processes the satellite images and creates a mask with parcel borders in white and interiors in black for deep learning.
 """
 
-from datetime import datetime
-from pathlib import Path
-from helpers.cantons import Cantons
-from helpers.satelite import ProcessSatelite
-from helpers.mask import ProcessMask
-from pathlib import Path
-from datetime import datetime
 import re
+from datetime import datetime
+from pathlib import Path
+
+from helpers.cantons import Cantons
+from helpers.mask import ProcessMask
+from helpers.satelite import ProcessSatellite
 
 list_of_cantons = ['AG']
 base_path = "/workspaces/Satelite/data"
@@ -45,9 +44,9 @@ def process_satelite(canton: str):
     for parcel_file in parcels_files:
         print("Processing parcel: ", parcel_file.stem)
         parcel_index = int(re.findall(r'\d+', parcel_file.stem)[0])
-        process = ProcessSatelite(path_gpkg, time_start, time_end,
-                                  target_resolution, parcel_index)
-        process.create_satelite_mapper()
+        process = ProcessSatellite(path_gpkg, time_start, time_end,
+                                   target_resolution, parcel_index)
+        process.create_satellite_mapper()
         process.select_min_coverage_scene()
 
 
@@ -68,4 +67,3 @@ if __name__ == "__main__":
         process_canton(canton)
         process_satelite(canton)
         create_mask(canton)
-
