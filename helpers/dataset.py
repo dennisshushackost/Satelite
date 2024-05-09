@@ -23,25 +23,30 @@ class ImageDataLoader:
         self.mask_dir = self.base_path / 'mask'
 
     def process_image(self, image_path):
+        """
+        Tensorflow function to process the satellite images for tensorflow datasets.
+        :param image_path: A string of the image path
+        :return: tensorflow compatible float32 image
+        """
+
         def _load_image(path):
             with rasterio.open(path.decode("utf-8")) as src:
                 image = src.read().transpose((1, 2, 0))
                 return image.astype(np.float32)
 
-    def load_and_preprocess_image(self, image_path):
-        """
-        Loads the satellite image into the tensorflow dataset and
-        transforms it into the correct format (height, width, channels)
-        """
-
-        def _load_image(path):
-            with rasterio.open(path.decode('utf-8')) as src:
-                image = src.read().transpose((1, 2, 0))
-                return image.astype(np.float32)
-
         tensor = tf.numpy_function(_load_image, [image_path], tf.float32)
-        tensor.ensure_shape((1024, 1024, 4))
+        tensor.set_shape([1024, 1024, 4])
         return tensor
+
+    def process_mask(self, mask_path):
+        """
+        Tesnorflow function to process the masks for tensorflow datasets
+        :param mask_path: A string of the mask path
+        :return: tensorflow compatible uint8 image
+        """
+        def _load_mask(path):
+
+
 
     def create_dataset(self):
         image_paths = sorted(self.satellite_dir.glob('*.tif'),
