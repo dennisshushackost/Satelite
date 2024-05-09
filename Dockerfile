@@ -1,3 +1,8 @@
+# Execute by: docker build -t satellite-project .
+# Bind: docker run -d -p 2222:22 --gpus all --name my-tf-container -v /path/to/your/local/project:/project satellite-project
+# Bind: docker run -d -p 2222:22 --gpus all --name my-tf-container -v C:/Users/dshus/Desktop/project:/home/tf/project satellite-project
+# SSH into the docker container: ssh -p 2222 tf@localhost
+
 # Use the official TensorFlow GPU image as the base
 FROM tensorflow/tensorflow:latest-gpu
 
@@ -34,11 +39,11 @@ EXPOSE 22
 RUN pip install numpy scipy matplotlib geopandas rasterio scikit-learn eodal scikit-image jupyter
 
 # Copy files from your project folder into the container
-COPY . /project
+COPY . /home/tf/project
 
-# Set the working directory and change ownership to 'tf'
-WORKDIR /project
-RUN chown -R tf:tf /project
+# Correct the working directory to match the copied project location
+WORKDIR /home/tf/project
+RUN chown -R tf:tf /home/tf/project
 
 # Switch to user 'tf'
 USER tf
@@ -47,6 +52,6 @@ USER tf
 RUN ssh-keygen -t rsa -b 4096 -C "dennis.shushack@ost.ch" -f /home/tf/.ssh/id_rsa -N ""
 RUN chmod 400 /home/tf/.ssh/id_rsa
 
-# Command to start services, run as root to start SSHD
+# Command to start services, needs to switch back to root to start SSHD
 USER root
 CMD ["/usr/sbin/sshd", "-D"]
