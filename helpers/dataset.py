@@ -1,7 +1,7 @@
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-
 
 import tensorflow as tf
 from pathlib import Path
@@ -21,6 +21,12 @@ class ImageDataLoader:
         self.base_path = self.data_path.parent
         self.satellite_dir = self.base_path / 'satellite'
         self.mask_dir = self.base_path / 'mask'
+
+    def process_image(self, image_path):
+        def _load_image(path):
+            with rasterio.open(path.decode("utf-8")) as src:
+                image = src.read().transpose((1, 2, 0))
+                return image.astype(np.float32)
 
     def load_and_preprocess_image(self, image_path):
         """
