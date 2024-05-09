@@ -95,6 +95,9 @@ class ImageDataLoader:
         """
         Apply gaussian blur to an already normalized image.
         """
+        sigma = np.random()
+
+
 
     def add_rotation(self, image, mask):
         """
