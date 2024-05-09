@@ -44,9 +44,75 @@ class ImageDataLoader:
         :param mask_path: A string of the mask path
         :return: tensorflow compatible uint8 image
         """
+
         def _load_mask(path):
+            with rasterio.open(path.decode("utf-8")) as src:
+                mask = src.read(1)
+                mask = np.expand_dims(mask,
+                                      -1)  # Adds a new dimension in the end of the array (height, width, channels=1)
+                return mask.astype(np.uint8)
 
+        tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
+        tensor.set_shape([1024, 1024, 1])
+        return tensor
 
+    def add_speckle_noise(self, image):
+        """Apply speckle noise to an already normalized image."""
+        speckle_variance = np.random.uniform(0.01, 0.1)
+        noise = tf.random.normal(shape=tf.shape(image), mean=1.0, stddev=tf.sqrt(speckle_variance))
+        noisy_image = image * noise
+        return noisy_image
+
+    def add_gaussian_noise(self, image):
+        """Apply gaussian noise to an already normalized image."""
+        noise_variance = np.random.uniform(0.01, 0.1)
+        noise = tf.random.normal(shape=tf.shape(image), mean=0.0, stddev=tf.sqrt(noise_variance))
+        noisy_image = image + noise
+        return noisy_image
+
+    def add_salt_and_pepper_noise(self, image):
+        """
+        Adds salt and pepper noise to an already normalized image.
+        """
+        noise_level = np.random.uniform(0.01, 0.1)
+        shape = tf.shape(image)
+        # Creates a tensors with the same size as the image with random values between 0 and 1:
+        random_tensor = tf.random.uniform(shape, minval=0, maxval=1.0)
+
+        # Creates a salt mask (white pixels) i.e. at 6% noise_level => 3% of the pixels will be white
+        # Creates a mask with 0 and 1 values where 1 is the pixels that will be white
+        salt_mask = tf.cast(random_tensor <= (noise_level / 2), image.dtype)
+        # Creates a pepper mask (black pixels) i.e. at 6% noise_level => 3% of the pixels will be black
+        # Creates a mask with 0 and 1 values where 1 is the pixels that will be black
+        pepper_mask = tf.cast(random_tensor >= (1 - noise_level / 2), image.dtype)
+        # Apply the masks to the image
+        image_with_salt = tf.where(salt_mask == 1, tf.ones_like(image), image)
+        noisy_image = tf.where(pepper_mask == 1, tf.zeros_like(image), image_with_salt)
+
+        return noisy_image
+
+    def add_gaussian_blur(self, image):
+        """
+        Apply gaussian blur to an already normalized image.
+        """
+
+    def add_rotation(self, image, mask):
+        """
+        Rotate image by +- 90 degrees
+        """
+        rotation = [+1, -1]
+        random_rotation = np.random.choice(rotation)
+        image = tf.image.rot90(image, k=random_rotation)
+        mask = tf.image.rot90(mask, k=random_rotation)
+        return image, mask
+
+    def add_horizontal_flip(self, image, mask):
+        """
+        Flip image horizontally
+        """
+        image = tf.image.flip_left_right(image)
+        mask = tf.image.flip_left_right(mask)
+        return image, mask
 
     def create_dataset(self):
         image_paths = sorted(self.satellite_dir.glob('*.tif'),
