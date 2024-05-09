@@ -1,15 +1,19 @@
-from pathlib import Path
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
+
+import tensorflow as tf
+from pathlib import Path
 import numpy as np
 import rasterio
-import tensorflow as tf
 
 
 class ImageDataLoader:
     """
     This class prepares the tensorflow dataset for training:
     - Loads and processes the images and masks
-    - Applies data augmentation: Flipping, Rotating and adding speckle noise
+    - Applies data augmentation: Flipping, Rotating, Adds noise, gaussian blur and zooming in.
     """
 
     def __init__(self, data_path):
