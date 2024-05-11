@@ -1,7 +1,5 @@
-# Execute by: docker build -t satellite-project .
-# Bind: docker run -d -p 2222:22 --gpus all --name my-tf-container -v /path/to/your/local/project:/project satellite-project
-# Bind: docker run -d -p 2222:22 --gpus all --name my-tf-container -v C:/Users/dshus/Desktop/project:/home/tf/project satellite-project
-# SSH into the docker container: ssh -p 2222 tfuser@localhost
+# docker build -t satellite-project .
+# docker run -d -p 2222:22 --gpus all --name my-tf-container -v C:/Users/dshus/Desktop/project:/home/tfuser/project satellite-project
 
 # Use the official TensorFlow GPU image as the base
 FROM tensorflow/tensorflow:latest-gpu
@@ -47,6 +45,10 @@ COPY . /home/tfuser/project
 WORKDIR /home/tfuser/project
 RUN chown -R tfuser:tfuser /home/tfuser/project
 
+# Add entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Switch to user 'tfuser'
 USER tfuser
 
@@ -54,6 +56,7 @@ USER tfuser
 RUN ssh-keygen -t rsa -b 4096 -C "dennis.shushack@ost.ch" -f /home/tfuser/.ssh/id_rsa -N "" && \
     chmod 400 /home/tfuser/.ssh/id_rsa
 
-# Command to start services, needs to switch back to root to start SSHD
+# Set entrypoint and default command
 USER root
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["/usr/sbin/sshd", "-D"]
