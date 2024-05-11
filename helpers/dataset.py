@@ -2,11 +2,12 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-
+from scipy.ndimage import gaussian_filter
 import tensorflow as tf
 from pathlib import Path
 import numpy as np
 import rasterio
+
 
 
 class ImageDataLoader:
@@ -93,11 +94,21 @@ class ImageDataLoader:
 
     def add_gaussian_blur(self, image):
         """
-        Apply gaussian blur to an already normalized image.
+        Apply gaussian blur to an already normalized image using scipy. 
+        The function expects a tensorflow tensor and returns a blurred version of the image. 
+        Each band is blurred independently to maintain spectral integrity.
         """
-        sigma = np.random()
-
-
+        def _apply_blur(image):
+            # Define the standard deviation for the Gaussian Kernel: (Higher values will increase the blur)
+            sigma = np.random.uniform(0.5, 1.5)
+            blurred_image = np.zeros_like(image)
+            for i in range(4):
+                blurred_image[:, :, i] = gaussian_filter(image[:, :, i], sigma=sigma)
+            return blurred_image.astype(np.float32)
+        
+        blurred_image = tf.numpy_function(_apply_blur, [image], tf.float32)
+        blurred_image.set_shape([1024, 1024, 4])
+        return blurred_image
 
     def add_rotation(self, image, mask):
         """
