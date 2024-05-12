@@ -315,7 +315,7 @@ if __name__ == '__main__':
     time_start: datetime = datetime(2023, 6, 1)
     time_end: datetime = datetime(2023, 7, 31)
     target_resolution = 10
-    parcel_index = 10
+    parcel_index = 19
     process = ProcessSatellite(data_path, time_start, time_end, target_resolution, parcel_index)
     process.create_satellite_mapper()
     process.select_min_coverage_scene()
