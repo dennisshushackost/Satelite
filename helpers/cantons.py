@@ -147,7 +147,7 @@ class Cantons:
 
 
 if __name__ == "__main__":
-    cantons = Cantons(data_path="/project/Satelite/data/AG.gpkg",
+    cantons = Cantons(data_path="/home/tfuser/project/Satelite/data/AG.gpkg",
                       cell_size=2500, threshold=0.1)
     cantons.create_grid()
     cantons.process_and_save_grid()

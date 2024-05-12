@@ -64,6 +64,6 @@ def create_mask(canton: str):
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
-        # process_canton(canton)
+        process_canton(canton)
         process_satelite(canton)
         create_mask(canton)

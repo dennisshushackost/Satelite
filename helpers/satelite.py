@@ -311,11 +311,11 @@ class ProcessSatellite:
 
 
 if __name__ == '__main__':
-    data_path = '/project/Satelite/data/AG.gpkg'
+    data_path = './data/AG.gpkg'
     time_start: datetime = datetime(2023, 6, 1)
     time_end: datetime = datetime(2023, 7, 31)
     target_resolution = 10
-    parcel_index = 27
+    parcel_index = 10
     process = ProcessSatellite(data_path, time_start, time_end, target_resolution, parcel_index)
     process.create_satellite_mapper()
     process.select_min_coverage_scene()
