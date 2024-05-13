@@ -22,8 +22,6 @@ class LoadandAugment:
         self.train_set = None
         self.val_set = None
         self.test_set = None
-        self.setup_datasets()
-        
         
     # Augmentation functions:
     def add_random_brightness(self, image):
