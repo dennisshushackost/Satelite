@@ -137,7 +137,7 @@ class LoadandAugment:
         self.test_set = remaining.skip(val_size) 
         
         # Map the training dataset with augmentation
-        self.train_set = self.train_set.map(self.augment).batch(self.batch).prefetch(1)
+        self.train_set = self.train_set.map(self.augment, num_parallel_calls=tf.data.AUTOTUNE).batch(self.batch).prefetch(1)
         self.val_set = self.val_set.batch(self.batch).prefetch(1)
         self.test_set = self.test_set.batch(self.batch).prefetch(1)
         
