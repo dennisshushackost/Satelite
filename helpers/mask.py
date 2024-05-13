@@ -117,8 +117,9 @@ class ProcessMask:
         return border_shapes
 
 
+
 if __name__ == '__main__':
-    data_path = '/project/Satelite/data/AG.gpkg'
-    parcel_index = 27
+    data_path = './data/AG.gpkg'
+    parcel_index = 19
     border_processor = ProcessMask(data_path, parcel_index)
     border_processor.create_border_mask(border_width=0.1)
