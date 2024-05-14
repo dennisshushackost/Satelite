@@ -27,10 +27,8 @@ class CreateGrid:
         self.data.to_file(new_data_path, driver="GPKG")
         self.crs = self.data.crs
         self.xmin, self.ymin, self.xmax, self.ymax = self.data.total_bounds
-        self.grid = None
         self.create_folders()
         self.create_grid()
-        self.remove_non_essential_grid_cells()
 
     def create_folders(self):
         """
@@ -49,7 +47,6 @@ class CreateGrid:
         self.data = self.data.copy()
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
-        # Calculate area right after simplification
         self.data['area'] = self.data['geometry'].area
         self.data = self.data[self.data['area'] > 5000]       
         return self.data
@@ -70,12 +67,16 @@ class CreateGrid:
                 cell_ymax = cell_ymin + self.cell_size
                 cell = box(cell_xmin, cell_ymin, cell_xmax, cell_ymax)
                 grid_cells.append(cell)
-        self.grid = gpd.GeoDataFrame(grid_cells, columns=['geometry'], crs=self.crs)
+        grid = gpd.GeoDataFrame(grid_cells, columns=['geometry'], crs=self.crs)
+        grid["cell_id"] = np.arange(1, len(grid_cells) + 1)
+        grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
+        self.remove_non_essential_grid_cells(grid)
+        
     
-    def remove_non_essential_grid_cells(self):
+    def remove_non_essential_grid_cells(self, grid):
         print('Removing non-essential grid cells...')
-        self.grid['cell_area'] = self.grid['geometry'].area
-        joined = gpd.sjoin(self.grid, self.data, how='inner', op='intersects')
+        grid['cell_area'] = grid['geometry'].area
+        joined = gpd.sjoin(grid, self.data, how='inner', op='intersects')
 
         # Ensure 'area' from self.data is used
         grouped = joined.groupby('cell_id').agg({
@@ -93,4 +94,5 @@ class CreateGrid:
 
 if __name__ == "__main__":
     cantons = CreateGrid(data_path="/home/tfuser/project/Satelite/data/AG.gpkg", cell_size=2500, non_essential_cells=0.1)
+    
  
