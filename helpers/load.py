@@ -3,20 +3,19 @@ This script loads the tensorflow dataset and does on the fly augmentation
 during the training process. 
 """
 import os
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 from scipy.ndimage import gaussian_filter
 import tensorflow as tf
-from pathlib import Path
 import numpy as np
 
 class LoadandAugment:
     
-    def __init__(self, dataset, data_type, batch=30):
-        self.dataset = dataset
+    def __init__(self, dataset_path, data_type, batch=30):
+        self.dataset_path = dataset_path
         self.data_type = data_type
         self.batch = batch
+        self.load_and_augment()
         
     # Augmentation functions:
     def add_random_brightness(self, image):
@@ -118,7 +117,8 @@ class LoadandAugment:
     def load_and_augment(self):
                         
         # Shuffle the dataset
-        self.dataset = tf.data.Dataset.load(self.dataset).shuffle(1000).cache()
+        self.dataset = tf.data.Dataset.load(self.dataset_path)
+        self.dataset.shuffle(1000).cache()
         # Map the training dataset with augmentation
         if self.data_type == 'train':
             self.dataset = self.dataset.map(self.augment, num_parallel_calls=tf.data.AUTOTUNE).batch(self.batch).prefetch(tf.data.AUTOTUNE)
