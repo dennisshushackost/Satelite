@@ -19,6 +19,7 @@ class ProcessParcels:
         self.data_path = Path(self.data_path)
         self.parcel_data_path, self.satellite_images_folder = self.create_folders()
         self.canton = gpd.read_file(self.data_path)
+        self.crs = self.canton.crs
         self.process_parcels()
         
     def create_folders(self):
@@ -44,9 +45,10 @@ class ProcessParcels:
                 crs=src.crs
             )
             if not gdf.empty:
+                gdf = gdf.to_crs(self.crs)  # Convert CRS to match parcels
                 gdf['area'] = gdf['geometry'].area
                 largest_polygon = gdf.loc[gdf['area'].idxmax()]
-                return gpd.GeoDataFrame([largest_polygon], crs=src.crs)
+                return gpd.GeoDataFrame([largest_polygon], crs=self.crs)
             return gdf
 
     def get_image_extent_with_mask(self, image_path):
@@ -57,16 +59,35 @@ class ProcessParcels:
             bounds = img.bounds
             meta = img.meta
             mask = self.get_data_mask(image_path)
-            return box(bounds.left, bounds.bottom, bounds.right, bounds.top), meta, mask
+            # Create a shapely box (polygon) for the extent of the image
+            image_extent = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
+            # Convert the shapely box to a GeoDataFrame for CRS transformation
+            image_extent_gdf = gpd.GeoDataFrame([{'geometry': image_extent}], crs=meta['crs'])
+            # Convert the CRS of the image extent to match the parcels' CRS
+            image_extent_gdf = image_extent_gdf.to_crs(self.crs)
+            return image_extent_gdf.iloc[0]['geometry'], meta, mask
 
-    def trim_parcels_to_data_areas(self, canton, image_extent, crs, data_mask_gdf):
+    def trim_parcels_to_data_areas(self, canton, image_extent, data_mask_gdf):
         """
-        Trim parcels to only include the areas that overlap with data-rich regions of the satellite image.
+        Trim parcels to the data-rich areas identified. Ensure parcels smaller than 5000 square meters are removed after all operations.
+        Ensures that all multi-part geometries are exploded to single-part geometries for accurate area calculation and filtering.
         """
-        image_extent_gdf = gpd.GeoDataFrame([{'geometry': image_extent}], crs=crs)
+        image_extent_gdf = gpd.GeoDataFrame([{'geometry': image_extent}], crs=self.crs)
         trimmed_parcels = gpd.sjoin(canton, image_extent_gdf, how='inner', op='intersects')
         trimmed_parcels = gpd.overlay(trimmed_parcels, data_mask_gdf, how='intersection')
+
+        # Explode MultiPolygons to handle individual geometries
+        if any(trimmed_parcels.geometry.type == 'MultiPolygon'):
+            trimmed_parcels = trimmed_parcels.explode().reset_index(drop=True)
+
+        # Recalculate the area after overlay and exploding MultiPolygons to catch any new, smaller polygons
+        trimmed_parcels['area'] = trimmed_parcels.geometry.area
+
+        # Filter parcels by area again after performing the intersection and exploding
+        trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
+
         return trimmed_parcels
+
 
     def process_parcels(self):
         """
@@ -76,11 +97,11 @@ class ProcessParcels:
         for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
             image_extent, meta, data_mask_gdf = self.get_image_extent_with_mask(image_path)
-            canton_crs_adjusted = self.canton.to_crs(meta['crs'])
-            trimmed_parcels = self.trim_parcels_to_data_areas(canton_crs_adjusted, image_extent, meta['crs'], data_mask_gdf)
+            trimmed_parcels = self.trim_parcels_to_data_areas(self.canton, image_extent, data_mask_gdf)
+            trimmed_parcels = trimmed_parcels.to_crs(meta['crs'])  # Convert to satellite image CRS before saving
             output_path = os.path.join(self.parcel_data_path, os.path.splitext(image_file)[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
 
+
 if __name__ == "__main__":
     processor = ProcessParcels("/home/tfuser/project/Satelite/data/AG.gpkg")
-

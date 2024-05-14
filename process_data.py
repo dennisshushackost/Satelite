@@ -10,13 +10,16 @@ The script then processes the satellite images and creates a mask with parcel bo
 import re
 from datetime import datetime
 from pathlib import Path
+import geopandas as gpd
+from tqdm import tqdm
 
-from helpers.cantons import Cantons
-from helpers.mask import ProcessMask
+from helpers.grid import CreateGrid
 from helpers.satelite import ProcessSatellite
+from helpers.parcels import ProcessParcels
+from helpers.mask import ProcessMask
 
 list_of_cantons = ['AG']
-base_path = "/home/tfuser/project/Satelite/data"
+base_path = "/home/tfuser/project/Satelite/data/"
 cell_size = 2500
 threshold = 0.1
 time_start: datetime = datetime(2023, 6, 1)
@@ -24,39 +27,35 @@ time_end: datetime = datetime(2023, 7, 31)
 target_resolution = 10
 border_width = 0.1
 
-
-def process_canton(canton: str):
+def create_grid(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     print("Processing canton: ", canton)
-    cantons = Cantons(data_path=path_gpkg, cell_size=cell_size,
-                      threshold=threshold)
-    cantons.create_grid()
-    cantons.process_and_save_grid()
-    cantons.remove_non_significant_geodataframes()
+    CreateGrid(data_path=path_gpkg, cell_size=cell_size,
+                      non_essential_cells=threshold)
     print("Done processing canton: ", canton)
 
 
-def process_satelite(canton: str):
+def create_satelite(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
-    path_parcels = f"{base_path}/parcels"
-    parcels_files = list(Path(path_parcels).glob(f"{canton}_parcel_*.gpkg"))
-    parcels_files.sort()
-    for parcel_file in parcels_files:
-        print("Processing parcel: ", parcel_file.stem)
-        parcel_index = int(re.findall(r'\d+', parcel_file.stem)[0])
+    grid_path = f"{base_path}/grid/{canton}_essential_grid.gpkg"
+    grid_length = len(list(gpd.read_file(grid_path).iterfeatures()))
+    for index in tqdm(range(1, grid_length + 1)):   
         process = ProcessSatellite(path_gpkg, time_start, time_end,
-                                   target_resolution, parcel_index)
+                                   target_resolution, index)
         process.create_satellite_mapper()
         process.select_min_coverage_scene()
 
+def create_parcels(canton: str):
+    path_gpkg = f"{base_path}/{canton}.gpkg"
+    ProcessParcels(data_path=path_gpkg)
+    
 
 def create_mask(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     path_images = f"{base_path}/satellite"
     satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*.tif"))
     satelite_images.sort()
-    for satellite_image in satelite_images:
-        print("Creating mask for image mask: ", satellite_image.stem)
+    for satellite_image in tqdm(satelite_images, desc="Creating masks"):
         parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
         process = ProcessMask(path_gpkg, parcel_index)
         process.create_border_mask(border_width=border_width)
@@ -64,6 +63,7 @@ def create_mask(canton: str):
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
-        # process_canton(canton)
-        process_satelite(canton)
+        #create_grid(canton)
+        #create_satelite(canton)
+        #create_parcels(canton)
         create_mask(canton)
