@@ -13,15 +13,10 @@ import numpy as np
 
 class LoadandAugment:
     
-    def __init__(self, dataset, train=0.8, test=0.1, val=0.1, batch=30):
-        self.dataset = tf.data.Dataset.load(dataset)
-        self.train = train
-        self.test = test
-        self.val = val
+    def __init__(self, dataset, data_type, batch=30):
+        self.dataset = dataset
+        self.data_type = data_type
         self.batch = batch
-        self.train_set = None
-        self.val_set = None
-        self.test_set = None
         
     # Augmentation functions:
     def add_random_brightness(self, image):
@@ -121,25 +116,14 @@ class LoadandAugment:
         return image, mask
          
     def load_and_augment(self):
-        
-        # Calculate the number of examples in each split
-        dataset_size = len(list(self.dataset))
-        train_size = int(self.train * dataset_size)
-        val_size = int(self.val * dataset_size)
-                
+                        
         # Shuffle the dataset
-        self.dataset = self.dataset.shuffle(1000).cache()
-        
-        # Split the dataset into training, validation, and testing
-        self.train_set = self.dataset.take(train_size)
-        remaining = self.dataset.skip(train_size)
-        self.val_set = remaining.take(val_size)
-        self.test_set = remaining.skip(val_size) 
-        
+        self.dataset = tf.data.Dataset.load(self.dataset).shuffle(1000).cache()
         # Map the training dataset with augmentation
-        self.train_set = self.train_set.map(self.augment, num_parallel_calls=tf.data.AUTOTUNE).batch(self.batch).prefetch(1)
-        self.val_set = self.val_set.batch(self.batch).prefetch(1)
-        self.test_set = self.test_set.batch(self.batch).prefetch(1)
-        
-        return self.train_set, self.val_set, self.test_set
+        if self.data_type == 'train':
+            self.dataset = self.dataset.map(self.augment, num_parallel_calls=tf.data.AUTOTUNE).batch(self.batch).prefetch(tf.data.AUTOTUNE)
+        else:
+            self.dataset = self.dataset.batch(self.batch).prefetch(tf.data.AUTOTUNE)
+                    
+        return self.dataset
         
