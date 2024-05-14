@@ -42,10 +42,12 @@ class CreateGrid:
     def simplify_data(self):
         """
         Simplifies and validates the geometries of the cantonal data.
-        Removes parcels that are too small: Under 5000 square meters as we have a 
-        10m resolution satellite data.
+        Removes parcels that are too small: Under 5000 square meters as we have a 10m resolution satellite data. Further, it explodes MultiPolygons to handle individual geometries.
         """
         self.data = self.data.copy()
+        # Explode MultiPolygons to handle individual geometries
+        if any(self.data.geometry.type == 'MultiPolygon'):
+            self.data = self.data.explode().reset_index(drop=True)
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
