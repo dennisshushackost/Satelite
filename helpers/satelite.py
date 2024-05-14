@@ -59,10 +59,8 @@ class ProcessSatellite:
         self.mapper = None
         self.scene = None
         self.output_path_satellite = self.create_folders()
-        self.grid = gpd.read_file(self.output_path_grid / f'{self.canton_name}_grid.gpkg')
-        self.parcel_name = f'{self.canton_name}_parcel_{self.parcel_index}'
-        self.parcel = gpd.read_file(self.output_path_gdf / f'{self.parcel_name}.gpkg')
-        self.grid_index = self.parcel['cell_id'][0]
+        self.grid = gpd.read_file(self.output_path_grid / f'{self.canton_name}_essential_grid.gpkg')
+        self.satellite_name = f'{self.canton_name}_parcel_{self.grid_index}'
         self.crs = self.grid.crs
 
         # Use cloud data not local storage
@@ -75,6 +73,7 @@ class ProcessSatellite:
         """
         self.base_path = self.data_path.parent
         self.output_path_grid = self.base_path / "grid"
+        self.output_path_sat = self.base_path / "satellite"
         self.output_path_sat.mkdir(exist_ok=True)
         return self.output_path_sat
 
@@ -278,7 +277,7 @@ class ProcessSatellite:
             self.scene = self.mapper.data
 
             # Output path for the scene: 
-            original_path = self.output_path_satellite / f'{self.parcel_name}.tif'
+            original_path = self.output_path_satellite / f'{self.satellite_name}.tif'
 
             # Save the scene: 
             for timestamp, scene in self.scene:
@@ -306,11 +305,11 @@ class ProcessSatellite:
 
 
 if __name__ == '__main__':
-    data_path = './data/AG.gpkg'
+    data_path = '/home/tfuser/project/Satelite/data/AG.gpkg'
     time_start: datetime = datetime(2023, 6, 1)
     time_end: datetime = datetime(2023, 7, 31)
     target_resolution = 10
-    parcel_index = 19
+    parcel_index = 1
     process = ProcessSatellite(data_path, time_start, time_end, target_resolution, parcel_index)
     process.create_satellite_mapper()
     process.select_min_coverage_scene()

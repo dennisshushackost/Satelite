@@ -15,9 +15,10 @@ class CreateGrid:
     """
     This class creates a grid of the canton of a given cell_size and simplifies the geometries of the cantonal data.
     """
-    def __init__(self, data_path, cell_size=2500, non_essential_cells=0.1):
+    def __init__(self, data_path, cell_size=2500, non_essential_cells=0.1, area_to_ignore=5000):
         self.data_path = Path(data_path)
         self.canton_name = self.data_path.stem
+        self.area_to_ignore = area_to_ignore
         self.cell_size = cell_size
         self.data = gpd.read_file(self.data_path)
         self.data = self.simplify_data()
@@ -48,7 +49,7 @@ class CreateGrid:
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
-        self.data = self.data[self.data['area'] > 5000]       
+        self.data = self.data[self.data['area'] > self.area_to_ignore]       
         return self.data
 
     def create_grid(self):
@@ -72,7 +73,6 @@ class CreateGrid:
         grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
         self.remove_non_essential_grid_cells(grid)
         
-    
     def remove_non_essential_grid_cells(self, grid):
         print('Removing non-essential grid cells...')
         grid['cell_area'] = grid['geometry'].area
