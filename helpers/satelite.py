@@ -120,7 +120,6 @@ class ProcessSatellite:
             height, width = data.shape[1], data.shape[2]
 
             if height > self.target_size or width > self.target_size:
-                print("Cropping the image")
                 # Cropping if image is too large:
                 start_y = max(0, (height - self.target_size) // 2)
                 start_x = max(0, (width - self.target_size) // 2)
@@ -132,7 +131,6 @@ class ProcessSatellite:
                                                               self.target_size, self.target_size),
                                                        src.transform)
             elif height < self.target_size or width < self.target_size:
-                print("Padding the image")
                 # Padding if the image is too small:
                 pad_height = (self.target_size - height) // 2
                 pad_width = (self.target_size - width) // 2
@@ -173,7 +171,6 @@ class ProcessSatellite:
 
             # Delete non-padded and padded images if the no data percentage is above 10%
             if no_data_percentage > 10:
-                print(f"Deleting {file_path} due to no data percentage of {no_data_percentage}%")
                 os.remove(file_path)
 
     def resample_image(self, path_file):
