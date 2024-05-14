@@ -2,6 +2,7 @@ import os
 import geopandas as gpd
 from pathlib import Path
 import rasterio
+from tqdm import tqdm
 from rasterio.features import shapes
 from shapely.geometry import shape, box
 import numpy as np
@@ -17,12 +18,9 @@ class ProcessParcels:
         self.data_path = self.data_path.replace(self.canton_name, self.canton_name_simplified)
         self.data_path = Path(self.data_path)
         self.parcel_data_path, self.satellite_images_folder = self.create_folders()
-        self.satelite_images = self.get_satellite_paths()
-        self.data = gpd.read_file(self.data_path)
-
+        self.canton = gpd.read_file(self.data_path)
+        self.process_parcels()
         
-    
-            
     def create_folders(self):
         """
         Creates the necessary folders for the data.
@@ -32,12 +30,6 @@ class ProcessParcels:
         self.parcel_data_path = self.base_path / "parcels"
         self.parcel_data_path.mkdir(exist_ok=True)
         return self.parcel_data_path, self.satellite_images_folder
-
-    def get_satellite_paths(self):
-        """
-        Returns the paths to the satellite images.
-        """
-        return [f for f in os.listdir(self.satellite_images_folder) if f.endswith('.tif')]
     
     def get_data_mask(self, image_path):
         """
@@ -81,16 +73,14 @@ class ProcessParcels:
         Processes parcels for each satellite image by trimming them to the data-rich areas identified.
         """
         satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('.tif')]
-        for image_file in satellite_images:
+        for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
             image_extent, meta, data_mask_gdf = self.get_image_extent_with_mask(image_path)
-            canton_crs_adjusted = self.parcels.to_crs(meta['crs'])
+            canton_crs_adjusted = self.canton.to_crs(meta['crs'])
             trimmed_parcels = self.trim_parcels_to_data_areas(canton_crs_adjusted, image_extent, meta['crs'], data_mask_gdf)
-            output_path = os.path.join(self.output_folder, os.path.splitext(image_file)[0] + "_parcels.gpkg")
+            output_path = os.path.join(self.parcel_data_path, os.path.splitext(image_file)[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
-            print(f"Processed parcels for {image_file} and saved to {output_path}")
 
 if __name__ == "__main__":
-    parcel_data_path = "/home/tfuser/project/Satelite/data/parcels"
     processor = ProcessParcels("/home/tfuser/project/Satelite/data/AG.gpkg")
 
