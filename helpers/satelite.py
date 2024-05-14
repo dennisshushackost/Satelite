@@ -44,28 +44,25 @@ class ProcessSatellite:
         time_start (str): Start date for the satellite images.
         time_end  (str): End date for the satellite images
         target_resolution (int): Spatial resolution to resample all bands to.
-        parcel_index (int): Index of the field parcel
         target_size (int): Target size of the satellite images (default 256, 256), will be padded or
             cropped to this size.
     """
 
-    def __init__(self, data_path, time_start, time_end, target_resolution,
-                 parcel_index, target_size=256):
+    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, target_size=256):
         self.data_path = Path(data_path)
         self.time_start = time_start
         self.time_end = time_end
         self.target_resolution = target_resolution
         self.target_size = target_size
-        self.parcel_index = parcel_index
         self.canton_name = self.data_path.stem
-        self.grid_index = None
+        self.grid_index = grid_index
         self.mapper = None
         self.scene = None
         self.output_path_satellite = self.create_folders()
         self.grid = gpd.read_file(self.output_path_grid / f'{self.canton_name}_grid.gpkg')
         self.parcel_name = f'{self.canton_name}_parcel_{self.parcel_index}'
         self.parcel = gpd.read_file(self.output_path_gdf / f'{self.parcel_name}.gpkg')
-        self.grid_index = self.parcel['grid_index'][0]
+        self.grid_index = self.parcel['cell_id'][0]
         self.crs = self.grid.crs
 
         # Use cloud data not local storage
@@ -77,8 +74,6 @@ class ProcessSatellite:
         Creates the necessary folders for the data.
         """
         self.base_path = self.data_path.parent
-        self.output_path_gdf = self.base_path / "parcels"
-        self.output_path_sat = self.base_path / "satellite"
         self.output_path_grid = self.base_path / "grid"
         self.output_path_sat.mkdir(exist_ok=True)
         return self.output_path_sat
