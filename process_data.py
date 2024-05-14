@@ -16,7 +16,7 @@ from helpers.mask import ProcessMask
 from helpers.satelite import ProcessSatellite
 
 list_of_cantons = ['AG']
-base_path = "/project/Satelite/data/"
+base_path = "/home/tfuser/project/Satelite/data"
 cell_size = 2500
 threshold = 0.1
 time_start: datetime = datetime(2023, 6, 1)
@@ -64,6 +64,6 @@ def create_mask(canton: str):
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
-        process_canton(canton)
+        # process_canton(canton)
         process_satelite(canton)
         create_mask(canton)

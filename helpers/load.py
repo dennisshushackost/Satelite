@@ -128,7 +128,7 @@ class LoadandAugment:
         val_size = int(self.val * dataset_size)
                 
         # Shuffle the dataset
-        self.dataset = self.dataset.shuffle(1000)
+        self.dataset = self.dataset.shuffle(1000).cache()
         
         # Split the dataset into training, validation, and testing
         self.train_set = self.dataset.take(train_size)

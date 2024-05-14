@@ -1,5 +1,5 @@
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Concatenate, Conv2DTranspose
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Concatenate, Conv2DTranspose
 from tensorflow.keras.layers import BatchNormalization, Activation
 
 class UNET:
@@ -31,7 +31,7 @@ class UNET:
         Encoder block for the UNET architecture
         """
         x = self.conv_block(input, num_filters)
-        p = MaxPool2D((2, 2))(x)
+        p = MaxPooling2D((2, 2))(x)
         return x, p
     
     def decoder_block(self, input, skip_features, num_filters):
