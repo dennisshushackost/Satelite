@@ -17,6 +17,7 @@ from helpers.grid import CreateGrid
 from helpers.satelite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
+from helpers.dataset import CreateTensorflowDataset
 
 list_of_cantons = ['AG']
 base_path = "/home/tfuser/project/Satelite/data/"
@@ -26,6 +27,9 @@ time_start: datetime = datetime(2023, 6, 1)
 time_end: datetime = datetime(2023, 7, 31)
 target_resolution = 10
 border_width = 0.1
+train = 0.8
+test = 0.1
+val = 0.1
 
 def create_grid(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -33,7 +37,6 @@ def create_grid(canton: str):
     CreateGrid(data_path=path_gpkg, cell_size=cell_size,
                       non_essential_cells=threshold)
     print("Done processing canton: ", canton)
-
 
 def create_satelite(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -48,7 +51,6 @@ def create_satelite(canton: str):
 def create_parcels(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     ProcessParcels(data_path=path_gpkg)
-    
 
 def create_mask(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -59,11 +61,15 @@ def create_mask(canton: str):
         parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
         process = ProcessMask(path_gpkg, parcel_index)
         process.create_border_mask(border_width=border_width)
-
+        
+def create_tensorflow_dataset(canton: str):
+    path_gpkg = f"{base_path}/{canton}.gpkg"
+    CreateTensorflowDataset(data_path=path_gpkg, train=train, test=test, val=val)
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
         #create_grid(canton)
         #create_satelite(canton)
         #create_parcels(canton)
-        create_mask(canton)
+        #create_mask(canton)
+        create_tensorflow_dataset(canton)

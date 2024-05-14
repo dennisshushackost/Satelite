@@ -1,8 +1,6 @@
 import os
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-from scipy.ndimage import gaussian_filter
 import tensorflow as tf
 from pathlib import Path
 import numpy as np
@@ -16,11 +14,15 @@ class CreateTensorflowDataset:
     a tensorflow dataset.
     """
 
-    def __init__(self, data_path):
+    def __init__(self, data_path, train=0.8, test=0.1, val=0.1):
         self.data_path = Path(data_path)
         self.base_path = self.data_path.parent
         self.satellite_dir = self.base_path / 'satellite'
         self.mask_dir = self.base_path / 'mask'
+        self.train = train
+        self.test = test
+        self.val = val
+        self.prepare_dataset()
 
     def process_image(self, image_path):
         """
@@ -67,16 +69,37 @@ class CreateTensorflowDataset:
         dataset = dataset.map(lambda x, y: (self.process_image(x), self.process_mask(y)),
                               num_parallel_calls=tf.data.AUTOTUNE)
         
-        # Save the tensorflow dataset:
+        # Calculate the number of examples in each split
+        dataset_size = len(list(dataset))
+        train_size = int(self.train * dataset_size)
+        val_size = int(self.val * dataset_size)
+        print(f"Train size: {train_size}, Validation size: {val_size}, Test size: {dataset_size - train_size - val_size}")
+        
+        # Shuffle the dataset
+        dataset = dataset.shuffle(1000)
+        
+        # Split the dataset into training, validation, and testing
+        train_set = dataset.take(train_size)
+        remaining = dataset.skip(train_size)
+        val_set = remaining.take(val_size)
+        test_set = remaining.skip(val_size)
+        
+        # Save the three datasets as train, test and val
         save_path = self.base_path / 'dataset'
         if not save_path.exists():
             save_path.mkdir()
-            
+        
         tf.data.Dataset.save(
-            dataset, str(save_path), compression=None, shard_func=None, checkpoint_args=None
+            train_set, str(save_path / 'train'), compression=None, shard_func=None, checkpoint_args=None
         )
-        print("Tensorflow dataset saved at: ", save_path)
-      
+        tf.data.Dataset.save(
+            val_set, str(save_path / 'val'), compression=None, shard_func=None, checkpoint_args=None
+        )
+        tf.data.Dataset.save(
+            test_set, str(save_path / 'test'), compression=None, shard_func=None, checkpoint_args=None
+        )
+        print("Done preparing the dataset.")
+        
 
 if __name__ == '__main__':
     data_path = '/home/tfuser/project/Satelite/data'
