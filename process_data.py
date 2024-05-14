@@ -68,8 +68,8 @@ def create_tensorflow_dataset(canton: str):
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
-        create_grid(canton)
-        create_satelite(canton)
-        create_parcels(canton)
-        create_mask(canton)
+        #create_grid(canton)
+        #create_satelite(canton)
+        #create_parcels(canton)
+        #create_mask(canton)
         create_tensorflow_dataset(canton)

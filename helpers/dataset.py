@@ -37,7 +37,7 @@ class CreateTensorflowDataset:
                 return image.astype(np.float32)
 
         tensor = tf.numpy_function(_load_image, [image_path], tf.float32)
-        tensor.set_shape([1024, 1024, 4])
+        tensor.set_shape([512, 512, 4])
         return tensor
 
     def process_mask(self, mask_path):
@@ -55,7 +55,7 @@ class CreateTensorflowDataset:
                 return mask.astype(np.uint8)
 
         tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
-        tensor.set_shape([1024, 1024, 1])
+        tensor.set_shape([512, 512, 1])
         return tensor
     
     def prepare_dataset(self):

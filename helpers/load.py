@@ -11,7 +11,7 @@ import numpy as np
 
 class LoadandAugment:
     
-    def __init__(self, dataset_path, data_type, batch=30):
+    def __init__(self, dataset_path, data_type, batch):
         self.dataset_path = dataset_path
         self.data_type = data_type
         self.batch = batch

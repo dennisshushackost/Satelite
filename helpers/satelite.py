@@ -48,7 +48,7 @@ class ProcessSatellite:
             cropped to this size.
     """
 
-    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, target_size=256):
+    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, target_size=512):
         self.data_path = Path(data_path)
         self.time_start = time_start
         self.time_end = time_end
@@ -180,7 +180,7 @@ class ProcessSatellite:
         """
         with rasterio.open(path_file) as src:
             # Define new dimensions based on scale factor
-            scale = 4
+            scale = 2
             new_height, new_width = int(src.height * scale), int(src.width * scale)
 
             # Resample data to target shape:
@@ -284,11 +284,11 @@ class ProcessSatellite:
                     band_selection=['red', 'green', 'blue', 'nir_1'],
                     as_cog=True)
 
-            # Crop or pad the image to the target size
-            self.crop_or_pad_image(original_path)
-
             # Resample the image to the new resolution of 5m using bicubic interpolation
             self.resample_image(original_path)
+            
+            # Crop or pad the image to the target size
+            self.crop_or_pad_image(original_path)
 
             # Normalize the bands of the satellite image
             self.process_and_save_normalized_image(original_path)
