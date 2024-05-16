@@ -3,7 +3,6 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import List
-
 import geopandas as gpd
 import numpy as np
 import rasterio
@@ -12,7 +11,6 @@ from eodal.core.sensors.sentinel2 import Sentinel2
 from eodal.mapper.feature import Feature
 from eodal.mapper.filter import Filter
 from eodal.mapper.mapper import Mapper, MapperConfigs
-from rasterio.enums import Resampling
 from rasterio.windows import Window
 
 # Ignore warnings
@@ -173,43 +171,6 @@ class ProcessSatellite:
             if no_data_percentage > 10:
                 os.remove(file_path)
 
-    def resample_image(self, path_file):
-        """
-        Resamples the image to the new resolution of 2.5m using bicubic interpolation.
-        In other words, this means decreasing the pixel size to 1/4 of the original size.
-        """
-        with rasterio.open(path_file) as src:
-            # Define new dimensions based on scale factor
-            scale = 2
-            new_height, new_width = int(src.height * scale), int(src.width * scale)
-
-            # Resample data to target shape:
-            data = src.read(
-                out_shape=(src.count,
-                           new_height,
-                           new_width),
-                resampling=Resampling.cubic
-            )
-
-            # Scale image transform:
-            new_transform = src.transform * src.transform.scale(
-                (src.width / (src.width * scale)),
-                (src.height / (src.height * scale))
-            )
-
-            # Prepare the new metadata
-            new_meta = src.meta.copy()
-            new_meta.update({
-                'driver': 'GTiff',
-                'height': new_height,
-                'width': new_width,
-                'transform': new_transform
-            })
-
-            # Write the upscaled image to disk:
-            with rasterio.open(path_file, 'w', **new_meta) as dst:
-                dst.write(data)
-
     def normalize_bands(self, src):
         """ 
         This function normalises the bands of the satellite image.
@@ -283,15 +244,12 @@ class ProcessSatellite:
                     original_path,
                     band_selection=['red', 'green', 'blue', 'nir_1'],
                     as_cog=True)
-
-            # Resample the image to the new resolution of 5m using bicubic interpolation
-            self.resample_image(original_path)
             
             # Crop or pad the image to the target size
             self.crop_or_pad_image(original_path)
 
             # Normalize the bands of the satellite image
-            self.process_and_save_normalized_image(original_path)
+            # self.process_and_save_normalized_image(original_path)
 
             # Remove all satelite images, which have a no data percentage above 10%
             self.get_no_data_percentage(original_path)
