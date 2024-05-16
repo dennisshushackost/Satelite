@@ -46,12 +46,12 @@ class ProcessSatellite:
             cropped to this size.
     """
 
-    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, target_size=512):
+    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, grid_size=2500):
         self.data_path = Path(data_path)
         self.time_start = time_start
         self.time_end = time_end
         self.target_resolution = target_resolution
-        self.target_size = target_size
+        self.target_size = grid_size // self.target_resolution
         self.canton_name = self.data_path.stem
         self.grid_index = grid_index
         self.mapper = None
