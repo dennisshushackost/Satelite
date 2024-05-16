@@ -46,7 +46,7 @@ class ProcessSatellite:
             cropped to this size.
     """
 
-    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, grid_size=2500):
+    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, upscale=False, grid_size=2500):
         self.data_path = Path(data_path)
         self.time_start = time_start
         self.time_end = time_end
@@ -54,6 +54,7 @@ class ProcessSatellite:
         self.target_size = grid_size // self.target_resolution
         self.canton_name = self.data_path.stem
         self.grid_index = grid_index
+        self.upscale = upscale
         self.mapper = None
         self.scene = None
         self.output_path_satellite = self.create_folders()
@@ -246,7 +247,8 @@ class ProcessSatellite:
                     as_cog=True)
             
             # Crop or pad the image to the target size
-            self.crop_or_pad_image(original_path)
+            if not self.upscale:
+                self.crop_or_pad_image(original_path)
 
             # Normalize the bands of the satellite image
             # self.process_and_save_normalized_image(original_path)
