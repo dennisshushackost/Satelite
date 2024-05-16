@@ -23,6 +23,7 @@ threshold = 0.1
 time_start = datetime(2023, 6, 1)
 time_end = datetime(2023, 7, 31)
 target_resolution = 10
+upsampling_factor = 2
 border_width = 0.1
 train = 0.8
 test = 0.1
@@ -52,6 +53,24 @@ def create_satellite(canton: str):
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         list(tqdm(executor.map(process_index, range(1, grid_length + 1)), total=grid_length))
 
+def process_image(image_path: str, upscale_factor: int):
+    resampler = Resample(image_path, upscale_factor)
+    resampler.resample_image()
+    resampler.crop_or_pad_image()
+    
+def create_upsampled_satellite(canton: str, upscale_factor: int = 2):
+    logging.info(f"Processing canton for satellite images: {canton}")
+    path_gpkg = f"{base_path}/{canton}.gpkg"
+    path_gpkg = Path(path_gpkg)
+    satellite_path = str(path_gpkg.parent.parent / "satellite")
+    satellite_images = list(Path(satellite_path).glob(f"{canton}_parcel_*.tif"))
+    logging.info(f"Found {len(satellite_images)} satellite images for canton {canton}")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(process_image, str(image), upscale_factor) for image in satellite_images]
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
+            future.result()
+    
 def create_parcels(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     ProcessParcels(data_path=path_gpkg)
@@ -73,13 +92,16 @@ def create_tensorflow_dataset(canton: str):
     CreateTensorflowDataset(data_path=path_gpkg, train=train, test=test, val=val)
 
 def process_canton(canton: str):
-    # create_grid(canton)
-    # create_satellite(canton)  # This will block until all satellite tasks are finished
-    # create_parcels(canton)    # Now proceed to parcels
+    #create_grid(canton)
+    #create_satellite(canton)  # This will block until all satellite tasks are finished
+    create_upsampled_satellite(canton)
+    #create_parcels(canton)    # Now proceed to parcels
     # Debug: Check the content of the parcels after creation
-    # time.sleep(10)  # Wait for the parcels to be created
+    time.sleep(10)  # Wait for the parcels to be created
+    
     # Continue with other tasks if needed
-    create_mask(canton)
+
+    #create_mask(canton)
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":

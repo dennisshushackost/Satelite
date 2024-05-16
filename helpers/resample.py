@@ -1,5 +1,6 @@
-import rasterio 
+import rasterio
 import numpy as np
+from pathlib import Path
 from rasterio.enums import Resampling
 from rasterio.windows import Window
 
@@ -15,8 +16,19 @@ class Resample:
         if self.upscale_factor not in [2, 4, 8, 16, 32]:
             raise ValueError("The resolution must be a power of 2, e.g. 2, 4, 8, 16, 32")
         self.upscaled_image_size = self.base_image_size * self.upscale_factor
-        self.resampled_image_path = self.image_path
+        self.resampled_image_path = self.create_folders()
         
+    def create_folders(self):
+        """
+        Creates the necessary folders for the data and sets the resampled image path.
+        """
+        self.base_path = Path(self.image_path).parent.parent
+        self.upscale_path = self.base_path / "satellite_upscaled"
+        self.upscale_path.mkdir(exist_ok=True)
+        resampled_image_name = Path(self.image_path).stem + f'_resampled_{self.upscale_factor}x.tif'
+        resampled_image_path = self.upscale_path / resampled_image_name
+        return resampled_image_path
+
     def resample_image(self):
         """
         Resamples the image to the new resolution using bicubic interpolation.
