@@ -11,13 +11,13 @@ from helpers.satelite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
-from helpers.dataset import 
+from helpers.resample import Resample
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-list_of_cantons = ['AI', 'GE']  # Add all your cantons here
-base_path = "/workspaces/Satelite/data"
+list_of_cantons = ['AI']  # Add all your cantons here
+base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500
 threshold = 0.1
 time_start = datetime(2023, 6, 1)
@@ -36,8 +36,11 @@ def create_grid(canton: str):
     logging.info(f"Done processing canton: {canton}")
 
 def create_satellite(canton: str):
+    logging.info(f"Processing canton for satellite images: {canton}")
     path_gpkg = f"{base_path}/{canton}.gpkg"
-    grid_path = f"{base_path}/grid/{canton}_essential_grid.gpkg"
+    path_gpkg = Path(path_gpkg)
+    grid_path = str(path_gpkg.parent.parent / "grid" / f"{canton}_essential_grid.gpkg")
+    print(grid_path)
     grid_length = len(list(gpd.read_file(grid_path).iterfeatures()))
     
     def process_index(index):
@@ -55,8 +58,10 @@ def create_parcels(canton: str):
 
 def create_mask(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
-    path_images = f"{base_path}/satellite"
+    path_images = f"{str(Path(base_path).parent)}/satellite"
     satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*.tif"))
+    logging.info(f"Processing canton for masks: {path_images}")
+    logging.info(f"We have {len(satelite_images)} satellite images to process")
     satelite_images.sort()
     for satellite_image in tqdm(satelite_images, desc="Creating masks"):
         parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
@@ -70,9 +75,9 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     # create_grid(canton)
     # create_satellite(canton)  # This will block until all satellite tasks are finished
-    create_parcels(canton)    # Now proceed to parcels
+    # create_parcels(canton)    # Now proceed to parcels
     # Debug: Check the content of the parcels after creation
-    time.sleep(10)  # Wait for the parcels to be created
+    # time.sleep(10)  # Wait for the parcels to be created
     # Continue with other tasks if needed
     create_mask(canton)
     # create_tensorflow_dataset(canton)

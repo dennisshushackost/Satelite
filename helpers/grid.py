@@ -35,7 +35,7 @@ class CreateGrid:
         """
         Creates the necessary folders for the data.
         """
-        self.base_path = self.data_path.parent
+        self.base_path = self.data_path.parent.parent
         self.grid_path = self.base_path / "grid"
         self.grid_path.mkdir(exist_ok=True)
 
