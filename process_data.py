@@ -51,7 +51,7 @@ def create_satellite(canton: str):
         process.create_satellite_mapper()
         process.select_min_coverage_scene()
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
         list(tqdm(executor.map(process_index, range(1, grid_length + 1)), total=grid_length))
 
 def process_image(image_path: str, upscale_factor: int):
@@ -108,5 +108,5 @@ def process_canton(canton: str):
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
         list(tqdm(executor.map(process_canton, list_of_cantons), total=len(list_of_cantons)))
