@@ -1,22 +1,19 @@
-"""
-This script pre-processes the data for the satellite image analysis. It creates a grid of
-cells for each canton, extracts the parcels from the cantonal data, assigns them to the
-corresponding grid cell, and saves the grid and parcels as GeoDataFrames.It also removes
-non-significant GeoDataFrames, which includes removing any parcels within each GeoDataFrame that are smaller than 5000 square meters,
-and then removing any GeoDataFrames that do not meet the area threshold or contain no significant parcels.
-The script then processes the satellite images and creates a mask with parcel borders in white and interiors in black for deep learning.
-"""
 import re
 from datetime import datetime
 from pathlib import Path
 import geopandas as gpd
 from tqdm import tqdm
 import concurrent.futures
+import logging
+import time 
 from helpers.grid import CreateGrid
 from helpers.satelite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 list_of_cantons = ['AI', 'GE']  # Add all your cantons here
 base_path = "/workspaces/Satelite/data"
@@ -33,9 +30,9 @@ upscale = False
 
 def create_grid(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
-    print("Processing canton: ", canton)
+    logging.info(f"Processing canton: {canton}")
     CreateGrid(data_path=path_gpkg, cell_size=cell_size, non_essential_cells=threshold)
-    print("Done processing canton: ", canton)
+    logging.info(f"Done processing canton: {canton}")
 
 def create_satellite(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -54,6 +51,10 @@ def create_satellite(canton: str):
 def create_parcels(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     ProcessParcels(data_path=path_gpkg)
+    # Debug: Check the content of the processed parcels
+    parcels_path = f"{base_path}/{canton}_parcels.gpkg"
+    parcels_gdf = gpd.read_file(parcels_path)
+    logging.info(f"Parcels GeoDataFrame for {canton} after processing: {len(parcels_gdf)} records")
 
 def create_mask(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -70,12 +71,15 @@ def create_tensorflow_dataset(canton: str):
     CreateTensorflowDataset(data_path=path_gpkg, train=train, test=test, val=val)
 
 def process_canton(canton: str):
-    create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
+    # create_grid(canton)
+    # create_satellite(canton)  # This will block until all satellite tasks are finished
     create_parcels(canton)    # Now proceed to parcels
+    # Debug: Check the content of the parcels after creation
+    time.sleep(10)  # Wait for the parcels to be created
+    # Continue with other tasks if needed
     # create_mask(canton)
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        canton_futures = list(tqdm(executor.map(process_canton, list_of_cantons), total=len(list_of_cantons)))
+        list(tqdm(executor.map(process_canton, list_of_cantons), total=len(list_of_cantons)))
