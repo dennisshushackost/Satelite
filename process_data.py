@@ -16,7 +16,7 @@ from helpers.resample import Resample
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-list_of_cantons = ['AI']  # Add all your cantons here
+list_of_cantons = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG', 'TI', 'UR', 'VS', 'ZG', 'ZH']  # Add all your cantons here
 base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500
 threshold = 0.1
@@ -67,7 +67,7 @@ def create_upsampled_satellite(canton: str, upscale_factor: int = 2):
     satellite_images = list(Path(satellite_path).glob(f"{canton}_parcel_*.tif"))
     logging.info(f"Found {len(satellite_images)} satellite images for canton {canton}")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(process_image, str(image), upscale_factor) for image in satellite_images]
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
             future.result()
@@ -108,5 +108,5 @@ def process_canton(canton: str):
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         list(tqdm(executor.map(process_canton, list_of_cantons), total=len(list_of_cantons)))
