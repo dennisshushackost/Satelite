@@ -51,10 +51,6 @@ def create_satellite(canton: str):
 def create_parcels(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     ProcessParcels(data_path=path_gpkg)
-    # Debug: Check the content of the processed parcels
-    parcels_path = f"{base_path}/{canton}_parcels.gpkg"
-    parcels_gdf = gpd.read_file(parcels_path)
-    logging.info(f"Parcels GeoDataFrame for {canton} after processing: {len(parcels_gdf)} records")
 
 def create_mask(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -77,7 +73,7 @@ def process_canton(canton: str):
     # Debug: Check the content of the parcels after creation
     time.sleep(10)  # Wait for the parcels to be created
     # Continue with other tasks if needed
-    # create_mask(canton)
+    create_mask(canton)
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":
