@@ -40,7 +40,7 @@ class ProcessParcels:
         """
         Creates the necessary folders for the data.
         """
-        self.base_path = self.data_path.parent
+        self.base_path = self.data_path.parent.parent
         self.satellite_images_folder = self.base_path / "satellite"
         self.parcel_data_path = self.base_path / "parcels"
         self.parcel_data_path.mkdir(exist_ok=True)

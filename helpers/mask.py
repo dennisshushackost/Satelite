@@ -22,7 +22,7 @@ class ProcessMask:
     def __init__(self, data_path, parcel_index):
         self.data_path = Path(data_path)
         self.parcel_index = parcel_index
-        self.base_path = self.data_path.parent
+        self.base_path = self.data_path.parent.parent
         self.canton = self.data_path.stem
         self.parcel_path = (f'{self.base_path}/parcels/'
                             f'{self.canton}_parcel_{self.parcel_index}.gpkg')

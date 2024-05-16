@@ -70,7 +70,7 @@ class ProcessSatellite:
         """
         Creates the necessary folders for the data.
         """
-        self.base_path = self.data_path.parent
+        self.base_path = self.data_path.parent.parent
         self.output_path_grid = self.base_path / "grid"
         self.output_path_sat = self.base_path / "satellite"
         self.output_path_sat.mkdir(exist_ok=True)
