@@ -42,7 +42,7 @@ class ProcessMask:
         Creates the necessary folders for the data.
         """
         self.mask_path = self.base_path / 'mask'
-        self.mask_resampled_path = self.base_path / 'mask_resampled'
+        self.mask_resampled_path = self.base_path / 'mask_upscaled'
         self.mask_path.mkdir(parents=True, exist_ok=True)
         self.mask_resampled_path.mkdir(parents=True, exist_ok=True)
         return
