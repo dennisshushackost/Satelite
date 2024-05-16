@@ -1,0 +1,23 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.177.0/containers
+{
+    "name": "TensorFlow GPU",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "runArgs": [
+        "--gpus",
+        "all"
+    ],
+    "remoteUser": "tfuser",
+    "extensions": [
+        "ms-python.python",
+        "visualstudioexptteam.vscodeintellicode",
+        "ms-python.vscode-pylance",
+        "esbenp.prettier-vscode",
+        "ms-toolsai.jupyter",
+        "rsip-vision.nvidia-smi-plus",
+        ""
+    ],
+    "postCreateCommand": "python3 -m pip install -r requirements.txt"
+}
