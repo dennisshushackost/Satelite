@@ -25,12 +25,13 @@ class ProcessParcels:
     """
     This class processes parcels based on satellite image data masks and extracts the largest data-rich areas.
     """
-    def __init__(self, data_path):
+    def __init__(self, data_path, scaled):
         self.data_path = data_path
         self.canton_name = data_path.split('/')[-1].split('.')[0]
         self.canton_name_simplified = f"{self.canton_name}_simplified"
         self.data_path = self.data_path.replace(self.canton_name, self.canton_name_simplified)
         self.data_path = Path(self.data_path)
+        self.upscaled = scaled  
         self.parcel_data_path, self.satellite_images_folder = self.create_folders()
         self.canton = gpd.read_file(self.data_path)
         self.crs = self.canton.crs
@@ -41,8 +42,12 @@ class ProcessParcels:
         Creates the necessary folders for the data.
         """
         self.base_path = self.data_path.parent.parent
-        self.satellite_images_folder = self.base_path / "satellite"
-        self.parcel_data_path = self.base_path / "parcels"
+        if not self.upscaled:
+            self.satellite_images_folder = self.base_path / "satellite"
+            self.parcel_data_path = self.base_path / "parcels"
+        else:
+            self.satellite_images_folder = self.base_path / "satellite_upscaled"
+            self.parcel_data_path = self.base_path / "parcels_upscaled"
         self.parcel_data_path.mkdir(exist_ok=True)
         return self.parcel_data_path, self.satellite_images_folder
     

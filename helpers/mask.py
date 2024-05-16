@@ -19,15 +19,20 @@ class ProcessMask:
     with borders marked in white and interiors in black.
     """
 
-    def __init__(self, data_path, parcel_index):
+    def __init__(self, data_path, parcel_index, resampled=False):
         self.data_path = Path(data_path)
         self.parcel_index = parcel_index
         self.base_path = self.data_path.parent.parent
         self.canton = self.data_path.stem
+        self.resampled = resampled
         self.parcel_path = (f'{self.base_path}/parcels/'
                             f'{self.canton}_parcel_{self.parcel_index}.gpkg')
         self.parcel = gpd.read_file(self.parcel_path)
-        self.satellite_path = (f"{self.base_path}/satellite/"
+        if not resampled:
+            self.satellite_path = (f"{self.base_path}/satellite/"
+                               f"{self.canton}_parcel_{self.parcel_index}.tif")
+        else:
+            self.satellite_path = (f"{self.base_path}/satellite_upscaled/"
                                f"{self.canton}_parcel_{self.parcel_index}.tif")
         self.mask_name = f"{self.canton}_parcel_{self.parcel_index}_mask.tif"
         self.create_folders()
@@ -37,7 +42,9 @@ class ProcessMask:
         Creates the necessary folders for the data.
         """
         self.mask_path = self.base_path / 'mask'
+        self.mask_resampled_path = self.base_path / 'mask_resampled'
         self.mask_path.mkdir(parents=True, exist_ok=True)
+        self.mask_resampled_path.mkdir(parents=True, exist_ok=True)
         return
 
     def create_border_mask(self, border_width):
@@ -81,8 +88,12 @@ class ProcessMask:
             combined_mask = np.maximum(fill_masks, border_masks)
 
             # Write the mask to a file
-            with rasterio.open(self.mask_path / self.mask_name, 'w', **meta) as out:
-                out.write(combined_mask, 1)
+            if not self.resampled:
+                with rasterio.open(self.mask_path / self.mask_name, 'w', **meta) as out:
+                    out.write(combined_mask, 1)
+            else:
+                with rasterio.open(self.mask_resampled_path / self.mask_name, 'w', **meta) as out:
+                    out.write(combined_mask, 1)
         except Exception as e:
             print(f'Error creating border mask: {e}')
 

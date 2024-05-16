@@ -46,12 +46,12 @@ class ProcessSatellite:
             cropped to this size.
     """
 
-    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, upscale=False, grid_size=2500):
+    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, upscale=False, target_size=256):
         self.data_path = Path(data_path)
         self.time_start = time_start
         self.time_end = time_end
         self.target_resolution = target_resolution
-        self.target_size = grid_size // self.target_resolution
+        self.target_size = target_size
         self.canton_name = self.data_path.stem
         self.grid_index = grid_index
         self.upscale = upscale
@@ -174,18 +174,19 @@ class ProcessSatellite:
 
     def normalize_bands(self, src):
         """ 
-        This function normalises the bands of the satellite image.
-        It clips the pixel values between the
-        1st and 99th percentile and scales them between 0 and 1. Percentile Clipping
-        or Contrast Stretching.
+        This function normalizes the bands of the satellite image.
+        It clips the pixel values between the 1st and 99th percentile and scales them between 0 and 1.
+        Applies min-max normalization to scale pixel values between 0 and 1.
         """
         bands_normalized = []
         for i in range(1, src.count + 1):
             band = src.read(i)
             # Calculates the first and 99th percentile in the image:
             p1, p99 = np.percentile(band, [1, 99])
-            # Values are clipped to the 1st and 99th percentile and scaled between 0 and 1:
-            band_normalized = np.clip((band - p1) / (p99 - p1), 0, 1)
+            # Values are clipped to the 1st and 99th percentile:
+            band_clipped = np.clip(band, p1, p99)
+            # Apply min-max normalization:
+            band_normalized = (band_clipped - p1) / (p99 - p1)
             bands_normalized.append(band_normalized)
         return bands_normalized
 
@@ -251,7 +252,7 @@ class ProcessSatellite:
                 self.crop_or_pad_image(original_path)
 
             # Normalize the bands of the satellite image
-            # self.process_and_save_normalized_image(original_path)
+            self.process_and_save_normalized_image(original_path)
 
             # Remove all satelite images, which have a no data percentage above 10%
             self.get_no_data_percentage(original_path)

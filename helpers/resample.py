@@ -8,11 +8,10 @@ class Resample:
     """
     This class upscales images and crops or pads them to a target size.
     """
-    def __init__(self, image_path: str, upscale_factor: int, grid_size: int = 2500):
+    def __init__(self, image_path: str, upscale_factor: int, target_size = 512):
         self.image_path = image_path
         self.upscale_factor = upscale_factor
-        self.grid_size = grid_size
-        self.base_image_size = grid_size // 10
+        self.base_image_size = target_size
         if self.upscale_factor not in [2, 4, 8, 16, 32]:
             raise ValueError("The resolution must be a power of 2, e.g. 2, 4, 8, 16, 32")
         self.upscaled_image_size = self.base_image_size * self.upscale_factor
@@ -25,7 +24,8 @@ class Resample:
         self.base_path = Path(self.image_path).parent.parent
         self.upscale_path = self.base_path / "satellite_upscaled"
         self.upscale_path.mkdir(exist_ok=True)
-        resampled_image_name = Path(self.image_path).stem + f'_resampled_{self.upscale_factor}x.tif'
+        # Resampled image name = original image name 
+        resampled_image_name = f"{Path(self.image_path).stem}.tif"
         resampled_image_path = self.upscale_path / resampled_image_name
         return resampled_image_path
 
