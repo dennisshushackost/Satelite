@@ -18,7 +18,7 @@ log_filename = 'processing.log'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
                     handlers=[logging.FileHandler(log_filename), logging.StreamHandler()])
 
-list_of_cantons = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG', 'TI', 'UR', 'VS', 'ZG', 'ZH']
+list_of_cantons = ['AG']
 base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500
 threshold = 0.1
@@ -32,6 +32,7 @@ train = 0.8
 test = 0.1
 val = 0.1
 upscale = False
+
 
 def create_grid(canton: str):
     try:
@@ -136,14 +137,14 @@ def create_tensorflow_dataset(canton: str):
 
 def process_canton(canton: str):
     logging.info(f"Starting processing for canton {canton}")
-    create_grid(canton)
+    # create_grid(canton)
     create_satellite(canton)  # This will block until all satellite tasks are finished
     create_upsampled_satellite(canton)
-    create_parcels(canton, scaled=False)  # Create parcels with original satellite images
-    create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
-    create_mask(canton, scaled=False)     # Create masks with original satellite images
-    time.sleep(5)
-    create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
+    #create_parcels(canton, scaled=False)  # Create parcels with original satellite images
+    #create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
+    #create_mask(canton, scaled=False)     # Create masks with original satellite images
+    #time.sleep(5)
+    # create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
     # create_tensorflow_dataset(canton)
     logging.info(f"Finished processing for canton {canton}")
 

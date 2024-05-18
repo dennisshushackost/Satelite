@@ -128,7 +128,6 @@ class ProcessMask:
         return border_shapes
 
 
-
 if __name__ == '__main__':
     data_path = './data/AG.gpkg'
     parcel_index = 19

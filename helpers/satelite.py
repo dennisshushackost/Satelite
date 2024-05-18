@@ -263,11 +263,11 @@ class ProcessSatellite:
 
 
 if __name__ == '__main__':
-    data_path = '/home/tfuser/project/Satelite/data/AG.gpkg'
+    data_path = "C:/Users/dshus/Documents/Satelite/data/cantons/AG.gpkg"
     time_start: datetime = datetime(2023, 6, 1)
     time_end: datetime = datetime(2023, 7, 31)
     target_resolution = 10
-    parcel_index = 2
+    parcel_index = 1
     process = ProcessSatellite(data_path, time_start, time_end, target_resolution, parcel_index)
     process.create_satellite_mapper()
     process.select_min_coverage_scene()

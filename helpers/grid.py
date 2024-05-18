@@ -95,6 +95,6 @@ class CreateGrid:
         print('Removed non-essential grid cells.')
 
 if __name__ == "__main__":
-    cantons = CreateGrid(data_path="/home/tfuser/project/Satelite/data/AG.gpkg", cell_size=2500, non_essential_cells=0.1)
+    cantons = CreateGrid(data_path="C:/Users/dshus/Documents/Satelite/data/cantons/AG.gpkg", cell_size=2500, non_essential_cells=0.1)
     
  
