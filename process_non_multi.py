@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 import geopandas as gpd
 from tqdm import tqdm
-import rasterio
 import logging
 import time 
 import numpy as np
@@ -15,7 +14,7 @@ from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
 from helpers.resample import Resample
 
-list_of_cantons = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG']
+list_of_cantons = ['AG']
 base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500
 threshold = 0.1
@@ -43,22 +42,9 @@ def create_satellite(canton: str):
         grid_length = len(list(gpd.read_file(grid_path).iterfeatures()))
         for index in range(1, grid_length + 1):
             process = ProcessSatellite(path_gpkg, time_start, time_end,
-                                           target_resolution, index, upscale=False, target_size=target_size)
+                                           target_resolution, index, target_size=target_size)
             process.create_satellite_mapper()
             process.select_min_coverage_scene()
-
-def process_image(image_path: str, upscale_factor: int):
-    resampler = Resample(image_path, upscale_factor, target_size)
-    resampler.resample_image()
-    resampler.crop_or_pad_image()
-    
-def create_upsampled_satellite(canton: str, upscale_factor: int = 2):
-    path_gpkg = f"{base_path}/{canton}.gpkg"
-    path_gpkg = Path(path_gpkg)
-    satellite_path = str(path_gpkg.parent.parent / "satellite")
-    satellite_images = list(Path(satellite_path).glob(f"{canton}_parcel_*.tif"))
-    for image in satellite_images:
-        process_image(str(image), upscale_factor)
     
 def create_parcels(canton: str, scaled):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -66,33 +52,22 @@ def create_parcels(canton: str, scaled):
 
 def create_mask(canton: str, scaled=False):
         path_gpkg = f"{base_path}/{canton}.gpkg"
+        path_images = f"{str(Path(base_path).parent)}/satellite"
         if not scaled:
-            path_images = f"{str(Path(base_path).parent)}/satellite"
+            satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*.tif"))
+            satelite_images.sort()
         else:
-            path_images = f"{str(Path(base_path).parent)}/satellite_upscaled"
+            # All satellite images who end with _upscaled.tif
+            satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*_upscaled.tif"))
+            satelite_images.sort()
             
-        satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*.tif"))
-        satelite_images.sort()
         for satellite_image in tqdm(satelite_images, desc="Creating masks"):
             parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
             try:
-                process = ProcessMask(path_gpkg, parcel_index, resampled=scaled)
+                process = ProcessMask(path_gpkg, parcel_index, upscaled=scaled)
                 process.create_border_mask(border_width=border_width)
             except Exception as e:
                 logging.error(f"Error creating mask for canton {canton}: {e}")
-                
-def delete_satellite_images(canton: str):
-    path_gpkg = f"{base_path}/{canton}.gpkg"
-    path_gpkg = Path(path_gpkg)
-    satellite_path = str(path_gpkg.parent.parent / "satellite")
-    satellite_images = list(Path(satellite_path).glob(f"{canton}_parcel_*.tif"))
-    for image in satellite_images:
-        with rasterio.open(image) as src:
-            data = src.read(1)
-            nan_count = np.sum(np.isnan(data))
-            if nan_count > 0:
-                print(f"Deleting image {image} with {nan_count} NaN values")
-                os.remove(image)
         
 def create_tensorflow_dataset(canton: str):
     try:
@@ -105,15 +80,12 @@ def create_tensorflow_dataset(canton: str):
 
 def process_canton(canton: str):
     logging.info(f"Starting processing for canton {canton}")
-    # create_grid(canton)
-    # create_satellite(canton)  # This will block until all satellite tasks are finished
-    # delete_satellite_images(canton)
-    # create_upsampled_satellite(canton)
-    # create_parcels(canton, scaled=False)  # Create parcels with original satellite images
-    # create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
-    # create_mask(canton, scaled=False)     # Create masks with original satellite images
-    # time.sleep(5)
-    # create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
+    create_grid(canton)
+    create_satellite(canton)  # This will block until all satellite tasks are finished
+    create_parcels(canton, scaled=False)  # Create parcels with original satellite images
+    create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
+    create_mask(canton, scaled=False)     # Create masks with original satellite images
+    create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":

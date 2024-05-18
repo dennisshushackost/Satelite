@@ -28,12 +28,8 @@ class ProcessParcels:
         Creates the necessary folders for the data.
         """
         self.base_path = self.data_path.parent.parent
-        if not self.upscaled:
-            self.satellite_images_folder = self.base_path / "satellite"
-            self.parcel_data_path = self.base_path / "parcels"
-        else:
-            self.satellite_images_folder = self.base_path / "satellite_upscaled"
-            self.parcel_data_path = self.base_path / "parcels_upscaled"
+        self.satellite_images_folder = self.base_path / "satellite"
+        self.parcel_data_path = self.base_path / "parcels"
         self.parcel_data_path.mkdir(exist_ok=True)
         return self.parcel_data_path, self.satellite_images_folder
     
@@ -89,7 +85,10 @@ class ProcessParcels:
         """
         Processes parcels for each satellite image by trimming them to the data-rich areas identified.
         """
-        satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('.tif')]
+        if not self.upscaled:
+            satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('.tif')]
+        else:
+            satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('_upscaled.tif')]
         for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
             image_extent, meta, data_mask_gdf = self.get_image_extent_with_mask(image_path)

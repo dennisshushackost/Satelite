@@ -42,9 +42,48 @@ class ProcessMask:
         Creates the necessary folders for the data.
         """
         self.mask_path = self.base_path / 'mask'
-        self.mask_resampled_path = self.base_path / 'mask_upscaled'
         self.mask_path.mkdir(parents=True, exist_ok=True)
-        self.mask_resampled_path.mkdir(parents=True, exist_ok=True)
+        return
+
+   # ignore warnings
+warnings.filterwarnings('ignore')
+
+
+class ProcessMask:
+    """
+    Processes the satellite image and the geodataframe to create a
+    parcel border mask for deep learning,
+    with borders marked in white and interiors in black.
+    """
+
+    def __init__(self, data_path, parcel_index, upscaled=False):
+        self.data_path = Path(data_path)
+        self.parcel_index = parcel_index
+        self.base_path = self.data_path.parent.parent
+        self.canton = self.data_path.stem
+        
+        if not upscaled:
+            self.parcel_path = (f'{self.base_path}/parcels/'
+                            f'{self.canton}_parcel_{self.parcel_index}.gpkg')
+            self.satellite_path = (f"{self.base_path}/satellite/"
+                               f"{self.canton}_parcel_{self.parcel_index}.tif")
+            self.mask_name = f"{self.canton}_parcel_{self.parcel_index}_mask.tif"
+        else:
+            self.parcel_path = (f'{self.base_path}/parcels/'
+                            f'{self.canton}_parcel_{self.parcel_index}_upscaled.gpkg')
+            self.satellite_path = (f"{self.base_path}/satellite/"
+                               f"{self.canton}_parcel_{self.parcel_index}_upscaled.tif")
+            self.mask_name = f"{self.canton}_parcel_{self.parcel_index}_upscaled_mask.tif"
+            
+        self.parcel = gpd.read_file(self.parcel_path)
+        self.create_folders()
+
+    def create_folders(self):
+        """
+        Creates the necessary folders for the data.
+        """
+        self.mask_path = self.base_path / 'mask'
+        self.mask_path.mkdir(parents=True, exist_ok=True)
         return
 
     def create_border_mask(self, border_width):
@@ -88,12 +127,8 @@ class ProcessMask:
             combined_mask = np.maximum(fill_masks, border_masks)
 
             # Write the mask to a file
-            if not self.resampled:
-                with rasterio.open(self.mask_path / self.mask_name, 'w', **meta) as out:
-                    out.write(combined_mask, 1)
-            else:
-                with rasterio.open(self.mask_resampled_path / self.mask_name, 'w', **meta) as out:
-                    out.write(combined_mask, 1)
+            with rasterio.open(self.mask_path / self.mask_name, 'w', **meta) as out:
+                out.write(combined_mask, 1)
         except Exception as e:
             print(f'Error creating border mask: {e}')
 
@@ -128,8 +163,9 @@ class ProcessMask:
         return border_shapes
 
 
+
 if __name__ == '__main__':
-    data_path = './data/AG.gpkg'
-    parcel_index = 19
-    border_processor = ProcessMask(data_path, parcel_index)
+    data_path = '/workspaces/Satelite/data/cantons/AG.gpkg'
+    parcel_index = 3
+    border_processor = ProcessMask(data_path, parcel_index, upscaled=True)
     border_processor.create_border_mask(border_width=0.1)

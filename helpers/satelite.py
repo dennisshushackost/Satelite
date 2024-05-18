@@ -12,6 +12,7 @@ from eodal.mapper.feature import Feature
 from eodal.mapper.filter import Filter
 from eodal.mapper.mapper import Mapper, MapperConfigs
 from rasterio.windows import Window
+from rasterio.enums import Resampling
 
 # Ignore warnings
 warnings.filterwarnings('ignore')
@@ -46,7 +47,7 @@ class ProcessSatellite:
             cropped to this size.
     """
 
-    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, upscale=False, target_size=256):
+    def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, target_size=256):
         self.data_path = Path(data_path)
         self.time_start = time_start
         self.time_end = time_end
@@ -54,7 +55,6 @@ class ProcessSatellite:
         self.target_size = target_size
         self.canton_name = self.data_path.stem
         self.grid_index = grid_index
-        self.upscale = upscale
         self.mapper = None
         self.scene = None
         self.output_path_satellite = self.create_folders()
@@ -109,11 +109,13 @@ class ProcessSatellite:
             print(f"An error occurred: {e}")
             return
 
-    def crop_or_pad_image(self, file_path):
+    def crop_or_pad_image(self, file_path, upscale=False):
         """
         Crops or pads the image to the target size.
         This function uses a window to crop or pad the image to the target size.
         """
+        if upscale:
+            self.target_size = self.target_size * 2
         with rasterio.open(file_path) as src:
             data = src.read()
             height, width = data.shape[1], data.shape[2]
@@ -167,9 +169,11 @@ class ProcessSatellite:
             no_data_count = data.mask.sum()
             total_pixels = data.size
             no_data_percentage = (no_data_count / total_pixels) * 100
-
+            data = src.read(1)
+            nan_count = np.sum(np.isnan(data))
+   
             # Delete non-padded and padded images if the no data percentage is above 10%
-            if no_data_percentage > 10:
+            if no_data_percentage > 10 or nan_count > 0:
                 print(f"Removing satellite image {file_path} with no data percentage {no_data_percentage:.2f}%")
                 os.remove(file_path)
 
@@ -207,6 +211,46 @@ class ProcessSatellite:
             with rasterio.open(input_path, 'w', **new_meta) as dst:
                 for i, band in enumerate(bands_normalized, start=1):
                     dst.write(band, i)
+                    
+    def resample_image(self, path_file):
+        """
+        Resamples the image to the new resolution of 2.5m using bicubic interpolation.
+        In other words, this means decreasing the pixel size to 1/4 of the original size.
+        """
+        upscale_path = str(path_file).replace(".tif", "_upscaled.tif")
+        with rasterio.open(path_file) as src:
+            # Define new dimensions based on scale factor
+            scale = 2
+            new_height, new_width = int(src.height * scale), int(src.width * scale)
+
+            # Resample data to target shape:
+            data = src.read(
+                out_shape=(src.count,
+                           new_height,
+                           new_width),
+                resampling=Resampling.cubic
+            )
+
+            # Scale image transform:
+            new_transform = src.transform * src.transform.scale(
+                (src.width / (src.width * scale)),
+                (src.height / (src.height * scale))
+            )
+
+            # Prepare the new metadata
+            new_meta = src.meta.copy()
+            new_meta.update({
+                'driver': 'GTiff',
+                'height': new_height,
+                'width': new_width,
+                'transform': new_transform
+            })
+
+            # Write the upscaled image to disk:
+            with rasterio.open(upscale_path, 'w', **new_meta) as dst:
+                dst.write(data)
+            return upscale_path
+
 
     def select_min_coverage_scene(self):
         """
@@ -247,17 +291,22 @@ class ProcessSatellite:
                     original_path,
                     band_selection=['red', 'green', 'blue', 'nir_1'],
                     as_cog=True)
+                
+            # Upscale the image to 2.5m resolution
+            upscale_path = self.resample_image(original_path)
             
             # Crop or pad the image to the target size
-            if not self.upscale:
-                self.crop_or_pad_image(original_path)
+            self.crop_or_pad_image(original_path, upscale=False)
+            self.crop_or_pad_image(upscale_path, upscale=True)
             
             # Normalize the bands of the satellite image
             self.process_and_save_normalized_image(original_path)
+            self.process_and_save_normalized_image(upscale_path)
             
             # Remove all satelite images, which have a no data percentage above 10%
             self.get_no_data_percentage(original_path)
-            
+            self.get_no_data_percentage(upscale_path)
+                        
         except Exception as e: 
             print(f"An error occurred: {e}")
             return
@@ -270,6 +319,6 @@ if __name__ == '__main__':
     target_resolution = 10
     index = 3
     process = ProcessSatellite(path_gpkg, time_start, time_end,
-                                           target_resolution, index, upscale=False, target_size=256)
+                                           target_resolution, index, target_size=256)
     process.create_satellite_mapper()
     process.select_min_coverage_scene()
