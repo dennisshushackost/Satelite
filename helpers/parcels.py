@@ -73,10 +73,16 @@ class ProcessParcels:
         Trim parcels to the data-rich areas identified. Ensure parcels smaller than 5000 square meters are removed after all operations.
         Ensures that all multi-part geometries are exploded to single-part geometries for accurate area calculation and filtering.
         """
+        # Set the image_extent_gdf as the CRS for the canton data
+        canton = canton.to_crs(image_extent_gdf.crs)
+        data_mask_gdf = data_mask_gdf.to_crs(image_extent_gdf.crs)
         # Perform spatial join to find parcels intersecting the image extent
         trimmed_parcels = gpd.sjoin(canton, image_extent_gdf, how='inner', predicate='intersects')
         # Perform overlay to trim parcels to data mask area
         trimmed_parcels = gpd.overlay(trimmed_parcels, data_mask_gdf, how='intersection')
+        # Remove parcels smaller than 5000 square meters
+        trimmed_parcels['area'] = trimmed_parcels['geometry'].area
+        trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
         return trimmed_parcels
 
     def process_parcels(self):
@@ -96,4 +102,4 @@ class ProcessParcels:
             trimmed_parcels.to_file(output_path, driver="GPKG")
 
 if __name__ == "__main__":
-    processor = ProcessParcels("/workspaces/Satelite/data/AI.gpkg")
+    processor = ProcessParcels("/workspaces/Satelite/data/cantons/AG.gpkg", scaled=False)

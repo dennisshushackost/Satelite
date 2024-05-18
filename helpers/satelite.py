@@ -170,6 +170,7 @@ class ProcessSatellite:
 
             # Delete non-padded and padded images if the no data percentage is above 10%
             if no_data_percentage > 10:
+                print(f"Removing satellite image {file_path} with no data percentage {no_data_percentage:.2f}%")
                 os.remove(file_path)
 
     def normalize_bands(self, src):
@@ -227,9 +228,9 @@ class ProcessSatellite:
             scene_kwargs = {
                 'scene_constructor': Sentinel2.from_safe,
                 'scene_constructor_kwargs': {'band_selection':
-                                                 ['B04', 'B03', 'B02', 'B08'],
-                                             'apply_scaling': False,
-                                             'read_scl': True},
+                                                    ['B04', 'B03', 'B02', 'B08'],
+                                                'apply_scaling': False,
+                                                'read_scl': True},
                 'scene_modifier': preprocess_sentinel2_scenes,
                 'scene_modifier_kwargs': {'target_resolution': self.target_resolution}
             }
@@ -250,24 +251,25 @@ class ProcessSatellite:
             # Crop or pad the image to the target size
             if not self.upscale:
                 self.crop_or_pad_image(original_path)
-
+            
             # Normalize the bands of the satellite image
             self.process_and_save_normalized_image(original_path)
-
+            
             # Remove all satelite images, which have a no data percentage above 10%
             self.get_no_data_percentage(original_path)
-
-        except Exception as e:
+            
+        except Exception as e: 
             print(f"An error occurred: {e}")
             return
 
-
+       
 if __name__ == '__main__':
-    data_path = "C:/Users/dshus/Documents/Satelite/data/cantons/AG.gpkg"
+    path_gpkg = "/workspaces/Satelite/data/cantons/AG.gpkg"
     time_start: datetime = datetime(2023, 6, 1)
     time_end: datetime = datetime(2023, 7, 31)
     target_resolution = 10
-    parcel_index = 1
-    process = ProcessSatellite(data_path, time_start, time_end, target_resolution, parcel_index)
+    index = 3
+    process = ProcessSatellite(path_gpkg, time_start, time_end,
+                                           target_resolution, index, upscale=False, target_size=256)
     process.create_satellite_mapper()
     process.select_min_coverage_scene()

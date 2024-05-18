@@ -106,7 +106,7 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
+    # create_satellite(canton)  # This will block until all satellite tasks are finished
     # delete_satellite_images(canton)
     # create_upsampled_satellite(canton)
     # create_parcels(canton, scaled=False)  # Create parcels with original satellite images
