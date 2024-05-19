@@ -20,6 +20,7 @@ class CreateGrid:
         self.canton_name = self.data_path.stem
         self.area_to_ignore = area_to_ignore
         self.cell_size = cell_size
+        self.create_folders()
         self.data = gpd.read_file(self.data_path)
         self.data = self.simplify_data()
         self.non_essential_cells = non_essential_cells
@@ -28,7 +29,6 @@ class CreateGrid:
         self.data.to_file(new_data_path, driver="GPKG")
         self.crs = self.data.crs
         self.xmin, self.ymin, self.xmax, self.ymax = self.data.total_bounds
-        self.create_folders()
         self.create_grid()
 
     def create_folders(self):
@@ -36,7 +36,9 @@ class CreateGrid:
         Creates the necessary folders for the data.
         """
         self.base_path = self.data_path.parent.parent
-        self.grid_path = self.base_path + self.canton_name / "grid"
+        print(self.base_path)
+        # Create grid folder
+        self.grid_path = self.base_path / "grid"
         self.grid_path.mkdir(exist_ok=True)
 
     def simplify_data(self):
@@ -45,6 +47,9 @@ class CreateGrid:
         Removes parcels that are too small: Under 5000 square meters as we have a 10m resolution satellite data. Further, it explodes MultiPolygons to handle individual geometries.
         """
         self.data = self.data.copy()
+        # Explode MultiPolygons
+        if any(self.data.geometry.type == 'MultiPolygon'):
+            self.data = self.data.explode().reset_index(drop=True)
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area

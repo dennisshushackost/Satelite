@@ -11,7 +11,6 @@ from helpers.satelite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
-from helpers.resample import Resample
 list_of_cantons = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG', 'TI', 'UR', 'VS', 'ZG', 'ZH']
 base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500

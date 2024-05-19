@@ -75,6 +75,8 @@ class ProcessParcels:
         # Perform spatial join to find parcels intersecting the image extent
         trimmed_parcels = gpd.sjoin(canton, image_extent_gdf, how='inner', predicate='intersects')
         # Perform overlay to trim parcels to data mask area
+        trimmed_parcels['area'] = trimmed_parcels.geometry.area
+        trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
         trimmed_parcels = gpd.overlay(trimmed_parcels, data_mask_gdf, how='intersection')
         return trimmed_parcels
 
