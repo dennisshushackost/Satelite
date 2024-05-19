@@ -36,7 +36,7 @@ class CreateGrid:
         Creates the necessary folders for the data.
         """
         self.base_path = self.data_path.parent.parent
-        self.grid_path = self.base_path / "grid"
+        self.grid_path = self.base_path + self.canton_name / "grid"
         self.grid_path.mkdir(exist_ok=True)
 
     def simplify_data(self):
@@ -45,9 +45,6 @@ class CreateGrid:
         Removes parcels that are too small: Under 5000 square meters as we have a 10m resolution satellite data. Further, it explodes MultiPolygons to handle individual geometries.
         """
         self.data = self.data.copy()
-        # Explode MultiPolygons to handle individual geometries
-        if any(self.data.geometry.type == 'MultiPolygon'):
-            self.data = self.data.explode().reset_index(drop=True)
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
@@ -94,7 +91,5 @@ class CreateGrid:
         essential_cells.to_file(self.grid_path / f'{self.canton_name}_essential_grid.gpkg', driver="GPKG")
         print('Removed non-essential grid cells.')
 
-if __name__ == "__main__":
-    cantons = CreateGrid(data_path="C:/Users/dshus/Documents/Satelite/data/cantons/AG.gpkg", cell_size=2500, non_essential_cells=0.1)
-    
+
  

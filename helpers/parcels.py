@@ -76,9 +76,6 @@ class ProcessParcels:
         trimmed_parcels = gpd.sjoin(canton, image_extent_gdf, how='inner', predicate='intersects')
         # Perform overlay to trim parcels to data mask area
         trimmed_parcels = gpd.overlay(trimmed_parcels, data_mask_gdf, how='intersection')
-        # Remove parcels smaller than 5000 square meters
-        trimmed_parcels['area'] = trimmed_parcels['geometry'].area
-        trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
         return trimmed_parcels
 
     def process_parcels(self):
@@ -87,8 +84,13 @@ class ProcessParcels:
         """
         if not self.upscaled:
             satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('.tif')]
+            # Remove all satlite images that do not have the canton name in them
+            satellite_images = [f for f in satellite_images if self.canton_name in f]
         else:
             satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('_upscaled.tif')]
+            # Remove all satlite images that do not have the canton name in them
+            satellite_images = [f for f in satellite_images if self.canton_name in f]
+            
         for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
             image_extent, meta, data_mask_gdf = self.get_image_extent_with_mask(image_path)
@@ -100,5 +102,3 @@ class ProcessParcels:
             output_path = os.path.join(self.parcel_data_path, os.path.splitext(image_file)[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
 
-if __name__ == "__main__":
-    processor = ProcessParcels("/workspaces/Satelite/data/cantons/AG.gpkg", scaled=False)

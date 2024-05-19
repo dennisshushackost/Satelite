@@ -311,14 +311,3 @@ class ProcessSatellite:
             print(f"An error occurred: {e}")
             return
 
-       
-if __name__ == '__main__':
-    path_gpkg = "/workspaces/Satelite/data/cantons/AG.gpkg"
-    time_start: datetime = datetime(2023, 6, 1)
-    time_end: datetime = datetime(2023, 7, 31)
-    target_resolution = 10
-    index = 3
-    process = ProcessSatellite(path_gpkg, time_start, time_end,
-                                           target_resolution, index, target_size=256)
-    process.create_satellite_mapper()
-    process.select_min_coverage_scene()

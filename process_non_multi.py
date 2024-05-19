@@ -5,16 +5,14 @@ from pathlib import Path
 import geopandas as gpd
 from tqdm import tqdm
 import logging
-import time 
-import numpy as np
+import time
 from helpers.grid import CreateGrid
 from helpers.satelite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
 from helpers.resample import Resample
-
-list_of_cantons = ['AG']
+list_of_cantons = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG', 'TI', 'UR', 'VS', 'ZG', 'ZH']
 base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500
 threshold = 0.1
@@ -40,11 +38,15 @@ def create_satellite(canton: str):
         path_gpkg = Path(path_gpkg)
         grid_path = str(path_gpkg.parent.parent / "grid" / f"{canton}_essential_grid.gpkg")
         grid_length = len(list(gpd.read_file(grid_path).iterfeatures()))
+        print(f"Processing {grid_length} grid cells for canton {canton}")
         for index in range(1, grid_length + 1):
-            process = ProcessSatellite(path_gpkg, time_start, time_end,
-                                           target_resolution, index, target_size=target_size)
-            process.create_satellite_mapper()
-            process.select_min_coverage_scene()
+            try:
+                process = ProcessSatellite(path_gpkg, time_start, time_end,
+                                            target_resolution, index, target_size=target_size)
+                process.create_satellite_mapper()
+                process.select_min_coverage_scene()
+            except Exception as e:
+                continue
     
 def create_parcels(canton: str, scaled):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -86,8 +88,10 @@ def process_canton(canton: str):
     create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
     create_mask(canton, scaled=False)     # Create masks with original satellite images
     create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
+    time.sleep(10)
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
+        print(f"Processing canton {canton}")
         process_canton(canton)
