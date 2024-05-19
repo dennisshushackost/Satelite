@@ -28,13 +28,13 @@ class ProcessMask:
                             f'{self.canton}_parcel_{self.parcel_index}.gpkg')
             self.satellite_path = (f"{self.base_path}/satellite/"
                                f"{self.canton}_parcel_{self.parcel_index}.tif")
-            self.mask_name = f"{self.canton}_parcel_mask{self.parcel_index}.tif"
+            self.mask_name = f"{self.canton}_parcel_{self.parcel_index}.tif"
         else:
             self.parcel_path = (f'{self.base_path}/parcels/'
                             f'{self.canton}_upscaled_parcel_{self.parcel_index}.gpkg')
             self.satellite_path = (f"{self.base_path}/satellite/"
                                f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif")
-            self.mask_name = f"{self.canton}_upscaled_parcel_mask_{self.parcel_index}.tif"
+            self.mask_name = f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif"
             
         self.parcel = gpd.read_file(self.parcel_path)
         # Make a copy of the parcel data to avoid modifying the original
