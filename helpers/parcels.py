@@ -85,13 +85,11 @@ class ProcessParcels:
         Processes parcels for each satellite image by trimming them to the data-rich areas identified.
         """
         if not self.upscaled:
-            satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('.tif')]
-            # Remove all satlite images that do not have the canton name in them
-            satellite_images = [f for f in satellite_images if self.canton_name in f]
+            satellite_images = list(Path(self.satellite_images_folder).glob(f"{self.canton_name}_parcel_*.tif"))
+            satellite_images = [str(image) for image in satellite_images]
         else:
-            satellite_images = [f for f in os.listdir(self.satellite_images_folder) if f.endswith('_upscaled.tif')]
-            # Remove all satlite images that do not have the canton name in them
-            satellite_images = [f for f in satellite_images if self.canton_name in f]
+            satellite_images = list(Path(self.satellite_images_folder).glob(f"{self.canton_name}_upscaled_parcel_*.tif"))
+            satellite_images = [str(image) for image in satellite_images]
             
         for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
@@ -99,8 +97,10 @@ class ProcessParcels:
          
             trimmed_parcels = self.trim_parcels_to_data_areas(self.canton, image_extent, data_mask_gdf)
             if trimmed_parcels.empty:
+                print(f"Empty parcels for {image_file}")
                 continue
             trimmed_parcels = trimmed_parcels.to_crs(meta['crs'])  # Convert to satellite image CRS before saving
-            output_path = os.path.join(self.parcel_data_path, os.path.splitext(image_file)[0] + ".gpkg")
+            file_name = image_file.split('/')[-1]
+            output_path = os.path.join(self.parcel_data_path, file_name.split('.')[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
 

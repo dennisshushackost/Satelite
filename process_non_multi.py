@@ -11,7 +11,8 @@ from helpers.satelite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
-list_of_cantons = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG', 'TI', 'UR', 'VS', 'ZG', 'ZH']
+list_of_cantons = ['AI']
+list_of_cantons_2 = ['AG', 'AI', 'BE', 'BL', 'FR', 'GE', 'GL', 'GR', 'JU', 'LU', 'NE', 'SG', 'SH', 'SO', 'SZ', 'TG', 'TI', 'UR', 'VS', 'ZG', 'ZH']
 base_path = "/workspaces/Satelite/data/cantons/"
 cell_size = 2500
 threshold = 0.1
@@ -59,7 +60,7 @@ def create_mask(canton: str, scaled=False):
             satelite_images.sort()
         else:
             # All satellite images who end with _upscaled.tif
-            satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*_upscaled.tif"))
+            satelite_images = list(Path(path_images).glob(f"{canton}_upscaled_parcel_*.tif"))
             satelite_images.sort()
             
         for satellite_image in tqdm(satelite_images, desc="Creating masks"):
@@ -80,9 +81,9 @@ def create_tensorflow_dataset(canton: str):
         logging.error(f"Error creating TensorFlow dataset for canton {canton}: {e}")
 
 def process_canton(canton: str):
-    logging.info(f"Starting processing for canton {canton}")
-    create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
+    #logging.info(f"Starting processing for canton {canton}")
+    #create_grid(canton)
+    #create_satellite(canton)  # This will block until all satellite tasks are finished
     create_parcels(canton, scaled=False)  # Create parcels with original satellite images
     create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
     create_mask(canton, scaled=False)     # Create masks with original satellite images

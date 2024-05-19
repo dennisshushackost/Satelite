@@ -217,7 +217,7 @@ class ProcessSatellite:
         Resamples the image to the new resolution of 2.5m using bicubic interpolation.
         In other words, this means decreasing the pixel size to 1/4 of the original size.
         """
-        upscale_path = str(path_file).replace(".tif", "_upscaled.tif")
+        upscale_path = str(path_file).replace(self.canton_name, f"{self.canton_name}_upscaled")
         with rasterio.open(path_file) as src:
             # Define new dimensions based on scale factor
             scale = 2
