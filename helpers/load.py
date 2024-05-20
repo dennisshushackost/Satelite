@@ -11,10 +11,11 @@ import numpy as np
 
 class LoadandAugment:
     
-    def __init__(self, dataset_path, data_type, batch):
+    def __init__(self, dataset_path, data_type, batch, augmentation):
         self.dataset_path = dataset_path
         self.data_type = data_type
         self.batch = batch
+        self.augmentation = augmentation
         self.load_and_augment()
         
     # Augmentation functions:
@@ -118,9 +119,9 @@ class LoadandAugment:
                         
         # Shuffle the dataset
         self.dataset = tf.data.Dataset.load(self.dataset_path)
-        self.dataset.shuffle(1000).cache()
+        self.dataset.cache()
         # Map the training dataset with augmentation
-        if self.data_type == 'train':
+        if self.data_type == 'train' and self.augmentation:
             self.dataset = self.dataset.map(self.augment, num_parallel_calls=tf.data.AUTOTUNE).batch(self.batch).prefetch(tf.data.AUTOTUNE)
         else:
             self.dataset = self.dataset.batch(self.batch).prefetch(tf.data.AUTOTUNE)
