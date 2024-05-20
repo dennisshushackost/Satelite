@@ -24,7 +24,14 @@ class CreateTensorflowDataset:
         self.train = train
         self.test = test
         self.val = val
+        if upscaled:
+            self.image_shape = [512, 512, 4]
+            self.mask_shape = [512, 512, 1]
+        else:
+            self.image_shape = [256, 256, 4]
+            self.mask_shape = [256, 256, 1]
         self.prepare_dataset()
+
 
     def process_image(self, image_path):
         """
@@ -39,7 +46,7 @@ class CreateTensorflowDataset:
                 return image.astype(np.float32)
 
         tensor = tf.numpy_function(_load_image, [image_path], tf.float32)
-        tensor.set_shape([512, 512, 4])
+        tensor.set_shape(self.image_shape)
         return tensor
 
     def process_mask(self, mask_path):
@@ -57,7 +64,7 @@ class CreateTensorflowDataset:
                 return mask.astype(np.uint8)
 
         tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
-        tensor.set_shape([512, 512, 1])
+        tensor.set_shape(self.mask_shape)
         return tensor
        
     def save_file_mapping(self, indices, images, masks, filename):
@@ -135,6 +142,6 @@ class CreateTensorflowDataset:
      
 if __name__ == '__main__':
     data_path = '/workspaces/Satelite/data'
-    upscaled = True
+    upscaled = False
     list_of_cantons = ['AG', 'AI']
     loader = CreateTensorflowDataset(data_path, list_of_cantons, upscaled)

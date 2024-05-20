@@ -12,10 +12,10 @@ class UNET:
 
     def conv_block(self, inputs, num_filters):
         """Basic convolutional block with Batch Normalization and ReLU activation."""
-        x = Conv2D(num_filters, 3, padding='same')(inputs)
+        x = Conv2D(num_filters, 3, kernel_initalizer='he_normal',padding='same')(inputs)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
-        x = Conv2D(num_filters, 3, padding='same')(x)
+        x = Conv2D(num_filters, 3,kernel_initalizer='he_normal', padding='same')(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
         return x
