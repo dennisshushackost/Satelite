@@ -29,7 +29,7 @@ class CreateTensorflowDataset:
             self.mask_shape = [512, 512, 1]
         else:
             self.image_shape = [256, 256, 4]
-            self.mask_shape = [256, 256, 1]
+            self.mask_shape = [512, 512, 1]
         self.prepare_dataset()
 
 
@@ -86,7 +86,7 @@ class CreateTensorflowDataset:
             else:
                 image_paths = sorted(self.satellite_dir.glob(f'{canton}_parcel_*.tif'))
                 images += image_paths
-                mask_paths = sorted(self.mask_dir.glob(f'{canton}_parcel_*.tif'))
+                mask_paths = sorted(self.mask_dir.glob(f'{canton}_upscaled_parcel_*.tif'))
                 masks += mask_paths
         
         # Shuffle the dataset:
