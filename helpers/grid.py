@@ -53,7 +53,7 @@ class CreateGrid:
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
-        self.data = self.data[self.data['area'] > self.area_to_ignore]       
+        # self.data = self.data[self.data['area'] > self.area_to_ignore]       
         return self.data
 
     def create_grid(self):
