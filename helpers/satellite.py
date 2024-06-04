@@ -13,6 +13,9 @@ from eodal.mapper.filter import Filter
 from eodal.mapper.mapper import Mapper, MapperConfigs
 from rasterio.windows import Window
 from rasterio.enums import Resampling
+import rasterio
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+
 
 # Ignore warnings
 warnings.filterwarnings('ignore')
@@ -49,6 +52,7 @@ class ProcessSatellite:
 
     def __init__(self, data_path, time_start, time_end, target_resolution, grid_index, target_size=256):
         self.data_path = Path(data_path)
+        print(self.data_path)
         self.time_start = time_start
         self.time_end = time_end
         self.target_resolution = target_resolution
@@ -61,6 +65,7 @@ class ProcessSatellite:
         self.grid = gpd.read_file(self.output_path_grid / f'{self.canton_name}_essential_grid.gpkg')
         self.satellite_name = f'{self.canton_name}_parcel_{self.grid_index}'
         self.crs = self.grid.crs
+        print(self.crs)
 
         # Use cloud data not local storage
         Settings = get_settings()
@@ -70,7 +75,7 @@ class ProcessSatellite:
         """
         Creates the necessary folders for the data.
         """
-        self.base_path = self.data_path.parent.parent
+        self.base_path = self.data_path.parent
         self.output_path_grid = self.base_path / "grid"
         self.output_path_sat = self.base_path / "satellite"
         self.output_path_sat.mkdir(exist_ok=True)
@@ -111,50 +116,57 @@ class ProcessSatellite:
 
     def crop_or_pad_image(self, file_path, upscale=False):
         """
-        Crops or pads the image to the target size.
-        This function uses a window to crop or pad the image to the target size.
+        Crops or pads the image to the target size while maintaining the image center.
         """
         if upscale:
             self.target_size = self.target_size * 2
+            
         with rasterio.open(file_path) as src:
             data = src.read()
-            height, width = data.shape[1], data.shape[2]
+            channels, height, width = data.shape
 
-            if height > self.target_size or width > self.target_size:
-                # Cropping if image is too large:
-                start_y = max(0, (height - self.target_size) // 2)
-                start_x = max(0, (width - self.target_size) // 2)
-                data_cropped = data[:, start_y:start_y + self.target_size,
-                               start_x:start_x + self.target_size]
-                # Adjust the spatial reference of the image to the new window
-                # (start_x, start_y, target_size, target_size)
-                transform = rasterio.windows.transform(Window(start_x, start_y,
-                                                              self.target_size, self.target_size),
-                                                       src.transform)
-            elif height < self.target_size or width < self.target_size:
-                # Padding if the image is too small:
-                pad_height = (self.target_size - height) // 2
-                pad_width = (self.target_size - width) // 2
-                data_cropped = np.pad(data, pad_width=((0, 0),
-                                                       (pad_height, self.target_size - height - pad_height),
-                                                       (pad_width, self.target_size - width - pad_width)),
-                                      mode='constant', constant_values=0)
-                transform = src.transform * src.transform.translation(-pad_width, -pad_height)
-            else:
-                return
+            # Calculate padding or cropping amounts for height and width
+            pad_height = max(self.target_size - height, 0)
+            pad_width = max(self.target_size - width, 0)
+            crop_height = max(height - self.target_size, 0)
+            crop_width = max(width - self.target_size, 0)
 
-                # Update metadata
+            # Pad to target size
+            if pad_height > 0 or pad_width > 0:
+                data_padded = np.pad(data, 
+                                    ((0, 0), 
+                                    (pad_height // 2, pad_height - pad_height // 2), 
+                                    (pad_width // 2, pad_width - pad_width // 2)), 
+                                    mode='constant', constant_values=0)
+                data = data_padded
+
+            # If image is larger than target size, crop the center
+            if crop_height > 0 or crop_width > 0:
+                start_height = crop_height // 2
+                start_width = crop_width // 2
+                data = data[:, start_height:start_height + self.target_size, start_width:start_width + self.target_size]
+
+            # Ensure the output is the target size
+            data = data[:, :self.target_size, :self.target_size]
+
+            # Calculate new transform to maintain the image location
+            original_center_x = src.bounds.left + (src.bounds.right - src.bounds.left) / 2
+            original_center_y = src.bounds.bottom + (src.bounds.top - src.bounds.bottom) / 2
+
+            new_bounds_left = original_center_x - (self.target_size / 2) * src.res[0]
+            new_bounds_right = original_center_x + (self.target_size / 2) * src.res[0]
+            new_bounds_bottom = original_center_y - (self.target_size / 2) * src.res[1]
+            new_bounds_top = original_center_y + (self.target_size / 2) * src.res[1]
+
+            new_transform = rasterio.transform.from_bounds(new_bounds_left, new_bounds_bottom, new_bounds_right, new_bounds_top, self.target_size, self.target_size)
+
+            # Save the cropped or padded image
             new_meta = src.meta.copy()
-            new_meta.update({
-                'driver': 'GTiff',
-                'height': self.target_size,
-                'width': self.target_size,
-                'transform': transform
-            })
+            new_meta.update({"height": self.target_size, "width": self.target_size, "transform": new_transform})
 
-            # Save the result to a new file
             with rasterio.open(file_path, 'w', **new_meta) as dst:
-                dst.write(data_cropped)
+                dst.write(data)
+
 
     def get_no_data_percentage(self, file_path):
         """
@@ -175,7 +187,9 @@ class ProcessSatellite:
             # Delete non-padded and padded images if the no data percentage is above 10%
             if no_data_percentage > 10 or nan_count > 0:
                 print(f"Removing satellite image {file_path} with no data percentage {no_data_percentage:.2f}%")
+                os.remove(str(file_path).replace(self.canton_name, f"{self.canton_name}_upscaled"))  
                 os.remove(file_path)
+                return True
 
     def normalize_bands(self, src):
         """ 
@@ -211,7 +225,7 @@ class ProcessSatellite:
             with rasterio.open(input_path, 'w', **new_meta) as dst:
                 for i, band in enumerate(bands_normalized, start=1):
                     dst.write(band, i)
-                    
+                
     def resample_image(self, path_file):
         """
         Resamples the image to the new resolution of 2.5m using bicubic interpolation.
@@ -291,23 +305,39 @@ class ProcessSatellite:
                     original_path,
                     band_selection=['red', 'green', 'blue', 'nir_1'],
                     as_cog=True)
-                
-            # Upscale the image to 2.5m resolution
-            upscale_path = self.resample_image(original_path)
-            
-            # Crop or pad the image to the target size
-            self.crop_or_pad_image(original_path, upscale=False)
-            self.crop_or_pad_image(upscale_path, upscale=True)
-            
-            # Normalize the bands of the satellite image
-            self.process_and_save_normalized_image(original_path)
-            self.process_and_save_normalized_image(upscale_path)
             
             # Remove all satelite images, which have a no data percentage above 10%
-            self.get_no_data_percentage(original_path)
-            self.get_no_data_percentage(upscale_path)
-                        
+            noData = self.get_no_data_percentage(original_path)
+            
+            if noData:
+                return
+            else:   
+                # Upscale the image to 2.5m resolution
+                upscale_path = self.resample_image(original_path)
+        
+                # Crop or pad the image to the target size
+                self.crop_or_pad_image(original_path, upscale=False)
+                self.crop_or_pad_image(upscale_path, upscale=True)
+                
+                # Normalize the bands of the satellite image
+                self.process_and_save_normalized_image(original_path)
+                self.process_and_save_normalized_image(upscale_path)
+                
         except Exception as e: 
             print(f"An error occurred: {e}")
             return
 
+if __name__ == "__main__":
+    # Define the path to the cantonal data
+    data_path = Path("/workspaces/Satelite/data/CH.gpkg")
+    # Define the start and end date for the satellite images
+    time_start = datetime(2021, 1, 1)
+    time_end = datetime(2021, 12, 31)
+    # Define the spatial resolution to resample all bands to
+    target_resolution = 10
+    # Define the grid index
+    grid_index = 285
+    # Create an instance of the ProcessSatellite class
+    process_satellite = ProcessSatellite(data_path, time_start, time_end, target_resolution, grid_index)
+    process_satellite.create_satellite_mapper()
+    process_satellite.select_min_coverage_scene()
