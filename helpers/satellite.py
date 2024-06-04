@@ -1,4 +1,5 @@
 import os
+import time
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -120,7 +121,7 @@ class ProcessSatellite:
         """
         if upscale:
             self.target_size = self.target_size * 2
-            
+
         with rasterio.open(file_path) as src:
             data = src.read()
             channels, height, width = data.shape
@@ -183,12 +184,15 @@ class ProcessSatellite:
             no_data_percentage = (no_data_count / total_pixels) * 100
             data = src.read(1)
             nan_count = np.sum(np.isnan(data))
-   
+    
             # Delete non-padded and padded images if the no data percentage is above 10%
-            if no_data_percentage > 10 or nan_count > 0:
+            if no_data_percentage > 15 or nan_count > 0:
                 print(f"Removing satellite image {file_path} with no data percentage {no_data_percentage:.2f}%")
-                os.remove(str(file_path).replace(self.canton_name, f"{self.canton_name}_upscaled"))  
-                os.remove(file_path)
+                upscaled_path = str(file_path).replace(self.canton_name, f"{self.canton_name}_upscaled")
+                if os.path.exists(upscaled_path):
+                    os.remove(upscaled_path)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
                 return True
 
     def normalize_bands(self, src):
@@ -305,12 +309,12 @@ class ProcessSatellite:
                     original_path,
                     band_selection=['red', 'green', 'blue', 'nir_1'],
                     as_cog=True)
-            
+          
             # Remove all satelite images, which have a no data percentage above 10%
             noData = self.get_no_data_percentage(original_path)
             
             if noData:
-                return
+                print("Hello")
             else:   
                 # Upscale the image to 2.5m resolution
                 upscale_path = self.resample_image(original_path)
@@ -336,7 +340,7 @@ if __name__ == "__main__":
     # Define the spatial resolution to resample all bands to
     target_resolution = 10
     # Define the grid index
-    grid_index = 285
+    grid_index = 1
     # Create an instance of the ProcessSatellite class
     process_satellite = ProcessSatellite(data_path, time_start, time_end, target_resolution, grid_index)
     process_satellite.create_satellite_mapper()
