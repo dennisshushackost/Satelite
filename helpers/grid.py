@@ -86,14 +86,10 @@ class CreateGrid:
         grid['cell_area'] = grid['geometry'].area
 
         # Perform spatial join between grid and border to find cells intersecting the border
-        print('Performing spatial join to find intersecting cells...')
         joined = gpd.sjoin(grid, self.border, how='inner', op='intersects')
-        print(f'Number of intersecting cells: {len(joined)}')
 
         # Filter out cells that are not fully within the border
-        print('Filtering cells that are fully within the border...')
         fully_within_cells = joined[joined.apply(lambda row: self.border.contains(row.geometry).all(), axis=1)]
-        print(f'Number of fully within cells: {len(fully_within_cells)}')
 
         # Reset index to avoid conflicts in spatial join
         fully_within_cells = fully_within_cells.reset_index(drop=True)
@@ -127,12 +123,7 @@ class CreateGrid:
 
         # Filter essential cells based on coverage ratio
         essential_cells = grouped[grouped['coverage_ratio'] >= self.non_essential_cells]
-        print(f'Number of essential cells: {len(essential_cells)}')
-
-        # Further filter out cells that are smaller than 2500m x 2500m (6,250,000 square meters)
-        cell_size_threshold = 6250000
-        essential_cells = essential_cells[essential_cells['cell_area'] >= cell_size_threshold]
-        print(f'Number of essential cells after size filtering: {len(essential_cells)}')
+        print(f'Number of essential cells: {len(essential_cells)}')       
 
         # If there are essential cells, create the GeoDataFrame and save to file
         if not essential_cells.empty:
