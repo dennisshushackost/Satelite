@@ -15,7 +15,8 @@ class ProcessMask:
     """
     Processes the satellite image and the geodataframe to create a
     parcel border mask for deep learning,
-    with borders marked in white and interiors in black.
+    with borders marked in white and interiors in black. This class uses the interior and 
+    the exterior mask to create the final mask.
     """
     def __init__(self, data_path, parcel_index, upscaled=False):
         self.data_path = Path(data_path)
