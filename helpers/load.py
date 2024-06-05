@@ -12,6 +12,14 @@ import numpy as np
 class LoadandAugment:
     """
     This class loads and augmentes the dataset for training if wanted.
+    The following augmentations are available:
+    1. Adding random brightness 
+    2. Adding horizontal flip 
+    3. Adding rotation 
+    4. Adding gaussian blur 
+    5. Adding speckle noise
+    6. Adding gaussian noise
+    7. Adding salt and pepper noise
     """
     
     def __init__(self, dataset_path, data_type, batch, augmentation):
@@ -101,7 +109,6 @@ class LoadandAugment:
         return noisy_image   
     
     def augment(self, image, mask):
-        
         # Adds a horizontal flip to the image and mask with a 50% probability
         if np.random.rand() > 0.5:
             image, mask = self.add_horizontal_flip(image, mask)
@@ -119,8 +126,9 @@ class LoadandAugment:
         return image, mask
          
     def load_and_augment(self):
-                        
-        # Shuffle the dataset
+        """
+        This function loads the data and applies the augementation if wanted.
+        """
         self.dataset = tf.data.Dataset.load(self.dataset_path)
         self.dataset.cache()
         # Map the training dataset with augmentation
