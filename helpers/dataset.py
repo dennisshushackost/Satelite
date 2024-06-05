@@ -12,7 +12,9 @@ class CreateTensorflowDataset:
     """
     This class prepares the tensorflow dataset for training:
     - Loads and processes the images and masks in order to be suiting for 
-    a tensorflow dataset.
+    a tensorflow dataset. The sizes of the different images are given by 
+    (512, 512, 4) for the images if they are upscaled and (256, 256, 4) if they are not.
+    The masks are always (512, 512, 1).
     """
 
     def __init__(self, data_path, cantons, upscaled, train=0.8, test=0.1, val=0.1):
@@ -60,7 +62,7 @@ class CreateTensorflowDataset:
             with rasterio.open(path.decode("utf-8")) as src:
                 mask = src.read(1)
                 mask = np.expand_dims(mask,
-                                      -1)  # Adds a new dimension in the end of the array (height, width, channels=1)
+                                      -1)  # Adds a new dimension in the end of   thearray (height, width, channels=1)
                 return mask.astype(np.uint8)
 
         tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
@@ -71,7 +73,8 @@ class CreateTensorflowDataset:
         mapping = [{'index': index, 'image': image, 'mask': mask} for index, image, mask in zip(indices, images, masks)]
         with open(self.base_path / filename, 'w') as f:
             json.dump(mapping, f)
-            
+
+    Here we can have a clea
             
     def prepare_dataset(self):
         print("Preparing the dataset...")
@@ -120,9 +123,12 @@ class CreateTensorflowDataset:
         test_dataset = tf.data.Dataset.from_tensor_slices((list(test_images), list(test_masks)))
         
         # Process the images and masks
-        train_dataset = train_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)), num_parallel_calls=tf.data.AUTOTUNE)
-        val_dataset = val_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)), num_parallel_calls=tf.data.AUTOTUNE)
-        test_dataset = test_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)), num_parallel_calls=tf.data.AUTOTUNE)
+        train_dataset = train_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
+                                          num_parallel_calls=tf.data.AUTOTUNE)
+        val_dataset = val_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
+                                      num_parallel_calls=tf.data.AUTOTUNE)
+        test_dataset = test_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
+                                        num_parallel_calls=tf.data.AUTOTUNE)
         
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -145,3 +151,5 @@ if __name__ == '__main__':
     upscaled = False
     list_of_cantons = ['AG', 'AI']
     loader = CreateTensorflowDataset(data_path, list_of_cantons, upscaled)
+
+

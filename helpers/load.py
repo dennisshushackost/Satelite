@@ -10,6 +10,9 @@ import tensorflow as tf
 import numpy as np
 
 class LoadandAugment:
+    """
+    This class loads and augmentes the dataset for training if wanted.
+    """
     
     def __init__(self, dataset_path, data_type, batch, augmentation):
         self.dataset_path = dataset_path
