@@ -11,7 +11,7 @@ from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
-list_of_cantons = ['CH']
+list_of_cantons = ['ZH']
 base_path = "/workspaces/Satelite/data/"
 cell_size = 2500
 threshold = 0.1
@@ -47,9 +47,9 @@ def create_satellite(canton: str):
             except Exception as e:
                 continue
     
-def create_parcels(canton: str, scaled):
+def create_parcels(canton: str, trimmed):
     path_gpkg = f"{base_path}/{canton}.gpkg"
-    ProcessParcels(data_path=path_gpkg, scaled=scaled)
+    ProcessParcels(data_path=path_gpkg, trimmed=trimmed)
 
 def create_mask(canton: str, scaled=False):
         path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -82,9 +82,8 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
-    # create_parcels(canton, scaled=False)  # Create parcels with original satellite images
-    # create_parcels(canton, scaled=True)   # Create parcels with upscaled satellite images
+    #create_satellite(canton)  # This will block until all satellite tasks are finished
+    create_parcels(canton, trimmed=False)   # Create parcels with upscaled satellite images
     # create_mask(canton, scaled=False)     # Create masks with original satellite images
     # create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
     time.sleep(10)

@@ -73,8 +73,6 @@ class CreateTensorflowDataset:
         mapping = [{'index': index, 'image': image, 'mask': mask} for index, image, mask in zip(indices, images, masks)]
         with open(self.base_path / filename, 'w') as f:
             json.dump(mapping, f)
-
-    Here we can have a clea
             
     def prepare_dataset(self):
         print("Preparing the dataset...")

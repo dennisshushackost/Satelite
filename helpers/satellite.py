@@ -1,5 +1,4 @@
 import os
-import time
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -12,11 +11,7 @@ from eodal.core.sensors.sentinel2 import Sentinel2
 from eodal.mapper.feature import Feature
 from eodal.mapper.filter import Filter
 from eodal.mapper.mapper import Mapper, MapperConfigs
-from rasterio.windows import Window
 from rasterio.enums import Resampling
-import rasterio
-from rasterio.warp import calculate_default_transform, reproject, Resampling
-
 
 # Ignore warnings
 warnings.filterwarnings('ignore')
@@ -64,7 +59,9 @@ class ProcessSatellite:
         self.scene = None
         self.output_path_satellite = self.create_folders()
         self.grid = gpd.read_file(self.output_path_grid / f'{self.canton_name}_essential_grid.gpkg')
-        self.satellite_name = f'{self.canton_name}_parcel_{self.grid_index}'
+        self.canton_name_2 = self.grid.kanton[self.grid_index]
+        self.satellite_name = f'{self.canton_name_2}_{self.canton_name}_parcel_{self.grid_index}'
+        self.satellite_name_upscaled = self.output_path_satellite / f'{self.canton_name_2}_{self.canton_name}_upscaled_parcel_{self.grid_index}.tif'
         self.crs = self.grid.crs
         print(self.crs)
 
@@ -230,13 +227,12 @@ class ProcessSatellite:
                 for i, band in enumerate(bands_normalized, start=1):
                     dst.write(band, i)
                 
-    def resample_image(self, path_file):
+    def resample_image(self, original_path):
         """
         Resamples the image to the new resolution of 2.5m using bicubic interpolation.
         In other words, this means decreasing the pixel size to 1/4 of the original size.
         """
-        upscale_path = str(path_file).replace(self.canton_name, f"{self.canton_name}_upscaled")
-        with rasterio.open(path_file) as src:
+        with rasterio.open(original_path) as src:
             # Define new dimensions based on scale factor
             scale = 2
             new_height, new_width = int(src.height * scale), int(src.width * scale)
@@ -265,9 +261,9 @@ class ProcessSatellite:
             })
 
             # Write the upscaled image to disk:
-            with rasterio.open(upscale_path, 'w', **new_meta) as dst:
+            with rasterio.open(self.satellite_name_upscaled, 'w', **new_meta) as dst:
                 dst.write(data)
-            return upscale_path
+            return self.satellite_name_upscaled
 
 
     def select_min_coverage_scene(self):
@@ -333,7 +329,7 @@ class ProcessSatellite:
 
 if __name__ == "__main__":
     # Define the path to the cantonal data
-    data_path = Path("/workspaces/Satelite/data/CH.gpkg")
+    data_path = Path("/workspaces/Satelite/data/ZH.gpkg")
     # Define the start and end date for the satellite images
     time_start = datetime(2021, 1, 1)
     time_end = datetime(2021, 12, 31)

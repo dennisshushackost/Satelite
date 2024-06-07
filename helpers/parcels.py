@@ -11,13 +11,13 @@ class ProcessParcels:
     """
     This class processes parcels based on satellite image data masks and extracts the largest data-rich areas.
     """
-    def __init__(self, data_path, scaled):
+    def __init__(self, data_path, trimmed=False):
         self.data_path = data_path
         self.canton_name = data_path.split('/')[-1].split('.')[0]
+        self.trimmed = trimmed
         self.canton_name_simplified = f"{self.canton_name}_simplified"
         self.data_path = self.data_path.replace(self.canton_name, self.canton_name_simplified)
         self.data_path = Path(self.data_path)
-        self.upscaled = scaled  
         self.parcel_data_path, self.satellite_images_folder = self.create_folders()
         self.canton = gpd.read_file(self.data_path)
         self.crs = self.canton.crs
@@ -27,7 +27,7 @@ class ProcessParcels:
         """
         Creates the necessary folders for the data.
         """
-        self.base_path = self.data_path.parent.parent
+        self.base_path = self.data_path.parent
         self.satellite_images_folder = self.base_path / "satellite"
         self.parcel_data_path = self.base_path / "parcels"
         self.parcel_data_path.mkdir(exist_ok=True)
@@ -76,7 +76,8 @@ class ProcessParcels:
         trimmed_parcels = gpd.sjoin(canton, image_extent_gdf, how='inner', predicate='intersects')
         # Perform overlay to trim parcels to data mask area
         trimmed_parcels['area'] = trimmed_parcels.geometry.area
-        trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
+        if self.trimmed:
+            trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
         trimmed_parcels = gpd.overlay(trimmed_parcels, data_mask_gdf, how='intersection')
         return trimmed_parcels
 
@@ -84,12 +85,10 @@ class ProcessParcels:
         """
         Processes parcels for each satellite image by trimming them to the data-rich areas identified.
         """
-        if not self.upscaled:
-            satellite_images = list(Path(self.satellite_images_folder).glob(f"{self.canton_name}_parcel_*.tif"))
-            satellite_images = [str(image) for image in satellite_images]
-        else:
-            satellite_images = list(Path(self.satellite_images_folder).glob(f"{self.canton_name}_upscaled_parcel_*.tif"))
-            satellite_images = [str(image) for image in satellite_images]
+        
+        satellite_images = list(Path(self.satellite_images_folder).glob(f"*_{self.canton_name}_upscaled_parcel_*.tif"))
+        satellite_images = [str(image) for image in satellite_images]
+        print(len(satellite_images))
             
         for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
@@ -101,6 +100,7 @@ class ProcessParcels:
                 continue
             trimmed_parcels = trimmed_parcels.to_crs(meta['crs'])  # Convert to satellite image CRS before saving
             file_name = image_file.split('/')[-1]
-            output_path = os.path.join(self.parcel_data_path, file_name.split('.')[0] + ".gpkg")
+            new_file_name = file_name.replace("_upscaled", "")
+            output_path = os.path.join(self.parcel_data_path, new_file_name.split('.')[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
 

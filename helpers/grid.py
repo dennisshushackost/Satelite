@@ -135,7 +135,7 @@ class CreateGrid:
         grid['cell_area'] = grid['geometry'].area
 
         # Perform spatial join between grid and border to find cells intersecting the border
-        joined = gpd.sjoin(grid, self.border, how='inner', op='intersects')
+        joined = gpd.sjoin(grid, self.border, how='inner', predicate='intersects')
 
         # Filter out cells that are not fully within the border
         fully_within_cells = joined[joined.apply(lambda row: self.border.contains(row.geometry).all(), axis=1)]
@@ -184,7 +184,8 @@ class CreateGrid:
         else:
             print('No essential cells to save.')
 
+
 if __name__ == "__main__":
-    data_path = "/workspaces/Satelite/data/CH.gpkg"
-    boundary_path = "/workspaces/Satelite/data/borders.geojson"
+    data_path = "/workspaces/Satelite/data/ZH.gpkg"
+    boundary_path = "/workspaces/Satelite/data/ZH.geojson"
     grid = CreateGrid(data_path, boundary_path, cell_size=2500, non_essential_cells=0.1)
