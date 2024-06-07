@@ -12,6 +12,17 @@ warnings.filterwarnings('ignore')
 class CreateGrid:
     """
     This class creates a grid of the swiss data of a given cell_size and simplifies the geometries of the cantonal data.
+    Following operations are performed:
+    1. Simplifies the geometries of the cantonal data / swiss data.
+        - Explodes MultiPolygons
+        - Simplifies the geometries
+        - Validates the geometries
+    2. Removes non-essential usable agricultural land from the data.
+        - List given in the code.
+    3. Creates a grid of the cantonal data.
+    4. Removes non-essential grid cells.
+        - Grid cells that are not fully within the cantonal/swiss border.
+        - Grid cells that do not have a coverage ratio of at least 0.1 (can be changed).
     """
 
     def __init__(self, data_path, boundary_path, cell_size=2500, non_essential_cells=0.1):
@@ -85,10 +96,7 @@ class CreateGrid:
 
     def remove_nutzungsflächen(self):
         """
-        This removes certain land use types from the data. These include: Feature=nutzung
-        1. Forests
-        2. Naturschutzflächen und Biodiversitätsförderflächen
-        3. High Areas 
+        This removes certain land use types from the data.
         """
         to_remove = [
             "Buntbrache",
