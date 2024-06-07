@@ -1,4 +1,3 @@
-import os
 import warnings
 from pathlib import Path
 import geopandas as gpd
@@ -131,7 +130,6 @@ class CreateGrid:
         self.data = self.data[~self.data['nutzung'].isin(to_remove)]
         return self.data
         
-    
     def remove_non_essential_grid_cells(self, grid):
         print('Removing non-essential grid cells...')
         grid['cell_area'] = grid['geometry'].area
