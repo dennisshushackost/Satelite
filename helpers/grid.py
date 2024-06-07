@@ -8,10 +8,12 @@ import numpy as np
 # Ignore warnings
 warnings.filterwarnings('ignore')
 
+
 class CreateGrid:
     """
     This class creates a grid of the swiss data of a given cell_size and simplifies the geometries of the cantonal data.
     """
+
     def __init__(self, data_path, boundary_path, cell_size=2500, non_essential_cells=0.1):
         self.data_path = Path(data_path)
         self.boundary_path = Path(boundary_path)
@@ -21,19 +23,19 @@ class CreateGrid:
         self.data = gpd.read_file(self.data_path)
         self.border = gpd.read_file(self.boundary_path)
         self.non_essential_cells = non_essential_cells
-        
+
         # Ensure all data has the same CRS
         if self.data.crs != self.border.crs:
             self.border = self.border.to_crs(self.data.crs)
-        
+
         # Simplify data
         self.data = self.simplify_data()
         self.data = self.remove_nutzungsflächen()
-        
+
         # Save simplified data to a new file to preserve the original data
         new_data_path = self.data_path.parent / f"{self.canton_name}_simplified.gpkg"
         self.data.to_file(new_data_path, driver="GPKG")
-        
+
         self.crs = self.data.crs
         self.xmin, self.ymin, self.xmax, self.ymax = self.data.total_bounds
         self.create_grid()
@@ -80,7 +82,7 @@ class CreateGrid:
         grid["cell_id"] = np.arange(1, len(grid_cells) + 1)
         grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
         self.remove_non_essential_grid_cells(grid)
-    
+
     def remove_nutzungsflächen(self):
         """
         This removes certain land use types from the data. These include: Feature=nutzung
@@ -113,7 +115,7 @@ class CreateGrid:
             "Einheimische standortgerechte Einzelbäume und Alleen (Punkte oder Flächen)",
             "Andere Bäume",
             "Andere Bäume (regionsspezifische Biodiversitätsförderfläche)",
-            "Andere Elemente (regionsspezifische Biodiversitätsförderfläche)","Quinoa",
+            "Andere Elemente (regionsspezifische Biodiversitätsförderfläche)", "Quinoa",
             "Heuwiesen im Sömmerungsgebiet, Typ extensiv genutzte Wiese",
             "Heuwiesen im Sömmerungsgebiet, Typ wenig intensiv genutzte Wiese",
             "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen) (regionsspezifische Biodiversitätsförderfläche)",
@@ -125,11 +127,11 @@ class CreateGrid:
             "Heuwiesen mit Zufütterung während der Sömmerung",
             "Streueflächen im Sömmerungsgebiet",
             "Regionsspezifische Biodiversitätsförderfläche (Grünflächen ohne Weiden)"
-    
+
         ]
         self.data = self.data[~self.data['nutzung'].isin(to_remove)]
         return self.data
-        
+
     def remove_non_essential_grid_cells(self, grid):
         print('Removing non-essential grid cells...')
         grid['cell_area'] = grid['geometry'].area
