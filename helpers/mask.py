@@ -11,6 +11,7 @@ from shapely.geometry import LineString, MultiPolygon, Polygon
 # ignore warnings
 warnings.filterwarnings('ignore')
 
+
 class ProcessMask:
     """
     Processes the satellite image and the geodataframe to create a
@@ -18,25 +19,26 @@ class ProcessMask:
     with borders marked in white and interiors in black. This class uses the interior and 
     the exterior mask to create the final mask.
     """
+
     def __init__(self, data_path, parcel_index, upscaled=False):
         self.data_path = Path(data_path)
         self.parcel_index = parcel_index
         self.base_path = self.data_path.parent.parent
         self.canton = self.data_path.stem
-        
+
         if not upscaled:
             self.parcel_path = (f'{self.base_path}/parcels/'
-                            f'{self.canton}_parcel_{self.parcel_index}.gpkg')
+                                f'{self.canton}_parcel_{self.parcel_index}.gpkg')
             self.satellite_path = (f"{self.base_path}/satellite/"
-                               f"{self.canton}_parcel_{self.parcel_index}.tif")
+                                   f"{self.canton}_parcel_{self.parcel_index}.tif")
             self.mask_name = f"{self.canton}_parcel_{self.parcel_index}.tif"
         else:
             self.parcel_path = (f'{self.base_path}/parcels/'
-                            f'{self.canton}_upscaled_parcel_{self.parcel_index}.gpkg')
+                                f'{self.canton}_upscaled_parcel_{self.parcel_index}.gpkg')
             self.satellite_path = (f"{self.base_path}/satellite/"
-                               f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif")
+                                   f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif")
             self.mask_name = f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif"
-            
+
         self.parcel = gpd.read_file(self.parcel_path)
         # Make a copy of the parcel data to avoid modifying the original
         self.parcel = self.parcel.copy()
@@ -103,27 +105,13 @@ class ProcessMask:
         """
         border_shapes = []
         for geom in self.parcel.geometry:
-            if isinstance(geom, MultiPolygon):
-                for poly in geom.geoms:
-                    # Buffer the exterior
-                    buffered_exterior = (LineString(list(poly.exterior.coords)).
-                                         buffer(buffer_width))
-                    border_shapes.append((buffered_exterior, 1))
-                    # Buffer each interior boundary
-                    for interior in poly.interiors:
-                        buffered_interior = (LineString(list(interior.coords)).
-                                             buffer(buffer_width))
-                        border_shapes.append((buffered_interior, 1))
-            elif isinstance(geom, Polygon):
-                # Buffer the exterior
-                buffered_exterior = (LineString(list(geom.exterior.coords)).
+            # Buffer the exterior
+            buffered_exterior = (LineString(list(geom.exterior.coords)).
+                                 buffer(buffer_width))
+            border_shapes.append((buffered_exterior, 1))
+            # Buffer each interior boundary
+            for interior in geom.interiors:
+                buffered_interior = (LineString(list(interior.coords)).
                                      buffer(buffer_width))
-                border_shapes.append((buffered_exterior, 1))
-                # Buffer each interior boundary
-                for interior in geom.interiors:
-                    buffered_interior = (LineString(list(interior.coords)).
-                                         buffer(buffer_width))
-                    border_shapes.append((buffered_interior, 1))
+                border_shapes.append((buffered_interior, 1))
         return border_shapes
-
-
