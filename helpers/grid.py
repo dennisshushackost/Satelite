@@ -29,6 +29,7 @@ class CreateGrid:
         
         # Simplify data
         self.data = self.simplify_data()
+        self.data = self.remove_nutzungsflächen()
         
         # Save simplified data to a new file to preserve the original data
         new_data_path = self.data_path.parent / f"{self.canton_name}_simplified.gpkg"
@@ -80,7 +81,57 @@ class CreateGrid:
         grid["cell_id"] = np.arange(1, len(grid_cells) + 1)
         grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
         self.remove_non_essential_grid_cells(grid)
-
+    
+    def remove_nutzungsflächen(self):
+        """
+        This removes certain land use types from the data. These include: Feature=nutzung
+        1. Forests
+        2. Naturschutzflächen und Biodiversitätsförderflächen
+        3. High Areas 
+        """
+        to_remove = [
+            "Buntbrache",
+            "Rotationsbrache",
+            "Saum auf Ackerflächen",
+            "Nützlingsstreifen auf offener Ackerfläche",
+            "Übrige offene Ackerfläche, nicht beitragsberechtigt (regionsspezifische Biodiversitätsförderfläche)",
+            "Christbäume",
+            "Hecken-, Feld- und Ufergehölze (mit Krautsaum)",
+            "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen)",
+            "Wald",
+            "Übrige unproduktive Flächen (z.B. gemulchte Flächen, stark verunkrautete Flächen, Hecken ohne Pufferstreifen)",
+            "Wassergräben, Tümpel, Teiche",
+            "Ruderalflächen, Steinhaufen und -wälle",
+            "Unbefestigte, natürliche Wege",
+            "Regionsspezifische Biodiversitätsförderflächen",
+            "Hausgärten",
+            "Sömmerungsweiden",
+            "Übrige Flächen ausserhalb der LN und SF",
+            "Flächen ohne landwirtschaftliche Hauptzweckbestimmung (erschlossenes Bauland, Spiel-, Reit-, Camping-, Golf-, Flug- und Militärplätze oder ausgemarchte Bereiche von Eisenbahnen, öffentlichen Strassen und Gewässern)",
+            "Offene Ackerfläche, beitragsberechtigt (regionsspezifische Biodiversitätsförderfläche)",
+            "Waldweiden (ohne bewaldete Fläche)",
+            "Heuwiesen im Sömmerungsgebiet, Übrige Wiesen",
+            "Einheimische standortgerechte Einzelbäume und Alleen (Punkte oder Flächen)",
+            "Andere Bäume",
+            "Andere Bäume (regionsspezifische Biodiversitätsförderfläche)",
+            "Andere Elemente (regionsspezifische Biodiversitätsförderfläche)","Quinoa",
+            "Heuwiesen im Sömmerungsgebiet, Typ extensiv genutzte Wiese",
+            "Heuwiesen im Sömmerungsgebiet, Typ wenig intensiv genutzte Wiese",
+            "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen) (regionsspezifische Biodiversitätsförderfläche)",
+            "Trockenmauern",
+            "Regionsspezifische Biodiversitätsförderflächen (Weiden)",
+            "Baumschule von Forstpflanzen ausserhalb der Forstzone",
+            "Ackerschonstreifen",
+            "Landwirtschaftliche Produktion in Gebäuden (z. B. Champignon, Brüsseler)",
+            "Heuwiesen mit Zufütterung während der Sömmerung",
+            "Streueflächen im Sömmerungsgebiet",
+            "Regionsspezifische Biodiversitätsförderfläche (Grünflächen ohne Weiden)"
+    
+        ]
+        self.data = self.data[~self.data['nutzung'].isin(to_remove)]
+        return self.data
+        
+    
     def remove_non_essential_grid_cells(self, grid):
         print('Removing non-essential grid cells...')
         grid['cell_area'] = grid['geometry'].area
@@ -115,7 +166,8 @@ class CreateGrid:
         grouped = joined_simplified.groupby('cell_id').agg({
             'geometry': 'first',
             'area': 'sum',
-            'cell_area': 'first'
+            'cell_area': 'first',
+            'kanton': lambda x: x.value_counts().index[0]  # Majority vote for kanton
         }).reset_index()
 
         # Calculate the coverage ratio
@@ -123,7 +175,7 @@ class CreateGrid:
 
         # Filter essential cells based on coverage ratio
         essential_cells = grouped[grouped['coverage_ratio'] >= self.non_essential_cells]
-        print(f'Number of essential cells: {len(essential_cells)}')       
+        print(f'Number of essential cells: {len(essential_cells)}')
 
         # If there are essential cells, create the GeoDataFrame and save to file
         if not essential_cells.empty:
