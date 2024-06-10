@@ -12,7 +12,7 @@ from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
 list_of_cantons = ['ZH']
-base_path = "/workspaces/Satelite/data/"
+base_path = "/Users/dennis/Documents/GitHub/Satelite/data"
 cell_size = 2500
 threshold = 0.1
 target_size = 256  # Has to be divisible by 32 due to UNET architecture
@@ -82,8 +82,8 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    #create_satellite(canton)  # This will block until all satellite tasks are finished
-    create_parcels(canton, trimmed=False)   # Create parcels with upscaled satellite images
+    create_satellite(canton)  # This will block until all satellite tasks are finished
+    # create_parcels(canton, trimmed=False)   # Create parcels with upscaled satellite images
     # create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
     time.sleep(10)
     # create_tensorflow_dataset(canton)

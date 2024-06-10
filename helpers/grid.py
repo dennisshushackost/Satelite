@@ -19,8 +19,9 @@ class CreateGrid:
         - Validates the geometries
     2. Removes non-essential usable agricultural land from the data.
         - List given in the code.
-    3. Creates a grid of the cantonal data.
-    4. Removes non-essential grid cells.
+    3. Optionally merges adjacent parcels of the same 'nutzung' type.
+    4. Creates a grid of the cantonal data.
+    5. Removes non-essential grid cells.
         - Grid cells that are not fully within the cantonal/swiss border.
         - Grid cells that do not have a coverage ratio of at least 0.1 (can be changed).
     """
@@ -56,7 +57,6 @@ class CreateGrid:
         Creates the necessary folders for the data.
         """
         self.base_path = self.data_path.parent
-        print(self.base_path)
         # Create grid folder
         self.grid_path = self.base_path / "grid"
         self.grid_path.mkdir(exist_ok=True)
@@ -68,7 +68,7 @@ class CreateGrid:
         self.data = self.data.copy()
         # Explode MultiPolygons
         if any(self.data.geometry.type == 'MultiPolygon'):
-            self.data = self.data.explode().reset_index(drop=True)
+            self.data = self.data.explode(index_parts=False).reset_index(drop=True)
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
@@ -93,7 +93,6 @@ class CreateGrid:
         grid["cell_id"] = np.arange(1, len(grid_cells) + 1)
         grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
         self.remove_non_essential_grid_cells(grid)
-
     def remove_nutzungsflächen(self):
         """
         This removes certain land use types from the data.
@@ -194,8 +193,7 @@ class CreateGrid:
         else:
             print('No essential cells to save.')
 
-
 if __name__ == "__main__":
-    data_path = "/workspaces/Satelite/data/ZH.gpkg"
-    boundary_path = "/workspaces/Satelite/data/ZH.geojson"
+    data_path = "/Users/dennis/Documents/GitHub/Satelite/data/ZH.gpkg"
+    boundary_path = "/Users/dennis/Documents/GitHub/Satelite/data/ZH.geojson"
     grid = CreateGrid(data_path, boundary_path, cell_size=2500, non_essential_cells=0.1)
