@@ -93,6 +93,8 @@ class CreateGrid:
         grid["cell_id"] = np.arange(1, len(grid_cells) + 1)
         grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
         self.remove_non_essential_grid_cells(grid)
+
+
     def remove_nutzungsflächen(self):
         """
         This removes certain land use types from the data.
@@ -140,6 +142,10 @@ class CreateGrid:
         return self.data
 
     def remove_non_essential_grid_cells(self, grid):
+        """
+        This removes the non-essential grid cells from the data. 
+        As such only the essential grid cells are used for further processing.
+        """
         print('Removing non-essential grid cells...')
         grid['cell_area'] = grid['geometry'].area
 
