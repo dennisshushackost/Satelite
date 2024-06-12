@@ -47,19 +47,20 @@ def create_satellite(canton: str):
             except Exception as e:
                 continue
     
-def create_parcels(canton: str, trimmed):
+def create_parcels(canton: str, trimmed, upscaling, combine_adjacent=True):
     path_gpkg = f"{base_path}/{canton}.gpkg"
-    ProcessParcels(data_path=path_gpkg, trimmed=trimmed)
+    ProcessParcels(data_path = path_gpkg, trimmed=trimmed, combine_adjacent=combine_adjacent, upscaling=upscaling)
 
 def create_mask(canton: str, scaled=False):
         path_gpkg = f"{base_path}/{canton}.gpkg"
-        path_images = f"{str(Path(base_path).parent)}/satellite"
+        path_images = f"{str(Path(base_path).parent)}/data/satellite"
+        print(path_images)
         if not scaled:
-            satelite_images = list(Path(path_images).glob(f"{canton}_parcel_*.tif"))
+            satelite_images = list(Path(path_images).glob(f"*_{canton}_parcel_*.tif"))
             satelite_images.sort()
         else:
             # All satellite images who end with _upscaled.tif
-            satelite_images = list(Path(path_images).glob(f"{canton}_upscaled_parcel_*.tif"))
+            satelite_images = list(Path(path_images).glob(f"*_{canton}_upscaled_parcel_*.tif"))
             satelite_images.sort()
             
         for satellite_image in tqdm(satelite_images, desc="Creating masks"):
@@ -82,9 +83,10 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
-    # create_parcels(canton, trimmed=False)   # Create parcels with upscaled satellite images
-    # create_mask(canton, scaled=True)      # Create masks with upscaled satellite images
+    # create_satellite(canton)  # This will block until all satellite tasks are finished
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   # Create parcels with upscaled satellite images
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
+    create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
     time.sleep(10)
     # create_tensorflow_dataset(canton)
 

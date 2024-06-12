@@ -11,10 +11,12 @@ class ProcessParcels:
     """
     This class processes parcels based on satellite image data masks and extracts the largest data-rich areas.
     """
-    def __init__(self, data_path, trimmed=False):
+    def __init__(self, data_path, trimmed=False, combine_adjacent=True, upscaling=False):
         self.data_path = data_path
         self.canton_name = data_path.split('/')[-1].split('.')[0]
         self.trimmed = trimmed
+        self.upscaling = upscaling
+        self.combine_adjacent = combine_adjacent
         self.canton_name_simplified = f"{self.canton_name}_simplified"
         self.data_path = self.data_path.replace(self.canton_name, self.canton_name_simplified)
         self.data_path = Path(self.data_path)
@@ -85,10 +87,12 @@ class ProcessParcels:
         """
         Processes parcels for each satellite image by trimming them to the data-rich areas identified.
         """
-        
-        satellite_images = list(Path(self.satellite_images_folder).glob(f"*_{self.canton_name}_upscaled_parcel_*.tif"))
-        satellite_images = [str(image) for image in satellite_images]
-        print(len(satellite_images))
+        if self.upscaling:
+            satellite_images = list(Path(self.satellite_images_folder).glob(f"*_{self.canton_name}_upscaled_parcel_*.tif"))
+            satellite_images = [str(image) for image in satellite_images]
+        else:
+            satellite_images = list(Path(self.satellite_images_folder).glob(f"*_{self.canton_name}_parcel_*.tif"))
+            satellite_images = [str(image) for image in satellite_images]
             
         for image_file in tqdm(satellite_images, desc='Processing parcels'):
             image_path = os.path.join(self.satellite_images_folder, image_file)
@@ -98,9 +102,38 @@ class ProcessParcels:
             if trimmed_parcels.empty:
                 print(f"Empty parcels for {image_file}")
                 continue
+            
             trimmed_parcels = trimmed_parcels.to_crs(meta['crs'])  # Convert to satellite image CRS before saving
+
+            # Combine the adjacent parcels
+            if self.combine_adjacent:
+                trimmed_parcels = self.combine_adjacent_parcels(trimmed_parcels)
+
+            # Save normal parcels
             file_name = image_file.split('/')[-1]
-            new_file_name = file_name.replace("_upscaled", "")
-            output_path = os.path.join(self.parcel_data_path, new_file_name.split('.')[0] + ".gpkg")
+            output_path = os.path.join(self.parcel_data_path, file_name.split('.')[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
 
+    def combine_adjacent_parcels(self, parcels):
+        """
+        Combines adjacent parcels with the same 'nutzung' type.
+        """
+        # Buffer to combine adjacent parcels
+        parcels['geometry'] = parcels.buffer(0.1)
+        combined = parcels.dissolve(by='nutzung')
+
+        # Explode multi-part geometries into single parts
+        combined = combined.explode(index_parts=False).reset_index(drop=True)
+
+        # Remove the buffer
+        combined['geometry'] = combined.buffer(-0.1)
+        
+        # Ensure valid geometries
+        combined['geometry'] = combined['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
+        combined['area'] = combined['geometry'].area
+        
+        return combined
+
+if __name__ == "__main__":
+    data_path = "/Users/dennis/Documents/GitHub/Satelite/data/ZH.gpkg"
+    grid = ProcessParcels(data_path, trimmed=False, combine_adjacent=True, upscaling=False)

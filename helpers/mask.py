@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-
+import glob
 import geopandas as gpd
 import numpy as np
 import rasterio
@@ -23,21 +23,22 @@ class ProcessMask:
     def __init__(self, data_path, parcel_index, upscaled=False):
         self.data_path = Path(data_path)
         self.parcel_index = parcel_index
-        self.base_path = self.data_path.parent.parent
+        self.base_path = self.data_path.parent
         self.canton = self.data_path.stem
 
         if not upscaled:
-            self.parcel_path = (f'{self.base_path}/parcels/'
-                                f'{self.canton}_parcel_{self.parcel_index}.gpkg')
-            self.satellite_path = (f"{self.base_path}/satellite/"
-                                   f"{self.canton}_parcel_{self.parcel_index}.tif")
-            self.mask_name = f"{self.canton}_parcel_{self.parcel_index}.tif"
+            parcel_pattern = (f'{self.base_path}/parcels/*_{self.canton}_parcel_{self.parcel_index}.gpkg')
+            satellite_pattern = (f"{self.base_path}/satellite/*_{self.canton}_upscaled_parcel_{self.parcel_index}.tif")
         else:
-            self.parcel_path = (f'{self.base_path}/parcels/'
-                                f'{self.canton}_upscaled_parcel_{self.parcel_index}.gpkg')
-            self.satellite_path = (f"{self.base_path}/satellite/"
-                                   f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif")
-            self.mask_name = f"{self.canton}_upscaled_parcel_{self.parcel_index}.tif"
+            parcel_pattern = (f'{self.base_path}/parcels/*_{self.canton}_upscaled_parcel_{self.parcel_index}.gpkg')
+            satellite_pattern = (f"{self.base_path}/satellite/*_{self.canton}_upscaled_parcel_{self.parcel_index}.tif")
+
+        # Use glob to find the files matching the pattern
+        parcel_files = glob.glob(parcel_pattern)
+        satellite_files = glob.glob(satellite_pattern)
+        self.parcel_path = parcel_files[0]
+        self.satellite_path = satellite_files[0]
+        self.mask_name = self.satellite_path.split('/')[-1]
 
         self.parcel = gpd.read_file(self.parcel_path)
         # Make a copy of the parcel data to avoid modifying the original
@@ -98,6 +99,7 @@ class ProcessMask:
         except Exception as e:
             print(f'Error creating border mask: {e}')
 
+    
     def _extract_and_buffer_borders(self, buffer_width):
         """
         Extracts borders from the parcel geometries and buffers them slightly to
@@ -105,13 +107,25 @@ class ProcessMask:
         """
         border_shapes = []
         for geom in self.parcel.geometry:
-            # Buffer the exterior
-            buffered_exterior = (LineString(list(geom.exterior.coords)).
-                                 buffer(buffer_width))
-            border_shapes.append((buffered_exterior, 1))
-            # Buffer each interior boundary
-            for interior in geom.interiors:
-                buffered_interior = (LineString(list(interior.coords)).
+            if isinstance(geom, MultiPolygon):
+                for poly in geom.geoms:
+                    # Buffer the exterior
+                    buffered_exterior = (LineString(list(poly.exterior.coords)).
+                                         buffer(buffer_width))
+                    border_shapes.append((buffered_exterior, 1))
+                    # Buffer each interior boundary
+                    for interior in poly.interiors:
+                        buffered_interior = (LineString(list(interior.coords)).
+                                             buffer(buffer_width))
+                        border_shapes.append((buffered_interior, 1))
+            elif isinstance(geom, Polygon):
+                # Buffer the exterior
+                buffered_exterior = (LineString(list(geom.exterior.coords)).
                                      buffer(buffer_width))
-                border_shapes.append((buffered_interior, 1))
+                border_shapes.append((buffered_exterior, 1))
+                # Buffer each interior boundary
+                for interior in geom.interiors:
+                    buffered_interior = (LineString(list(interior.coords)).
+                                         buffer(buffer_width))
+                    border_shapes.append((buffered_interior, 1))
         return border_shapes
