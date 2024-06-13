@@ -70,7 +70,7 @@ class LoadandAugment:
             return blurred_image.astype(np.float32)
         
         blurred_image = tf.numpy_function(_apply_blur, [image], tf.float32)
-        blurred_image.set_shape([1024, 1024, 4])
+        blurred_image.set_shape([256, 256, 4])
         return blurred_image
     
     def add_speckle_noise(self, image):

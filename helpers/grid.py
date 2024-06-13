@@ -200,6 +200,6 @@ class CreateGrid:
             print('No essential cells to save.')
 
 if __name__ == "__main__":
-    data_path = "/Users/dennis/Documents/GitHub/Satelite/data/ZH.gpkg"
-    boundary_path = "/Users/dennis/Documents/GitHub/Satelite/data/ZH.geojson"
+    data_path = "C:/Users/dshus/Documents/Satelite/data/ZH.gpkg"
+    boundary_path = "C:/Users/dshus/Documents/Satelite/data/ZH.geojson"
     grid = CreateGrid(data_path, boundary_path, cell_size=2500, non_essential_cells=0.1)

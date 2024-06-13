@@ -52,8 +52,14 @@ class UNET:
         d2 = self.decoder_block(d3, s2, 128)
         d1 = self.decoder_block(d2, s1, 64)
 
+         # Additional upsampling layers
+        u1 = Conv2DTranspose(32, (2, 2), strides=2, padding='same')(d1)
+        u1 = self.conv_block(u1, 32)
+
         # Output layer
-        outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(d1)
+        outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(u1)
 
         return Model(inputs, outputs, name='UNET')
 
+model = UNET((256, 256, 4)).model
+model.summary()

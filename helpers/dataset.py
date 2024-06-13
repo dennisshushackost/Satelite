@@ -80,15 +80,18 @@ class CreateTensorflowDataset:
         masks = []
         for canton in self.list_of_cantons:
             if self.upscaled:
-                image_paths = sorted(self.satellite_dir.glob(f'{canton}_upscaled_parcel_*.tif'))
+                image_paths = sorted(self.satellite_dir.glob(f'{canton}_*_upscaled_parcel_*.tif'))
                 images += image_paths
-                mask_paths = sorted(self.mask_dir.glob(f'{canton}_upscaled_parcel_*.tif'))
+                mask_paths = sorted(self.mask_dir.glob(f'{canton}_*_upscaled_parcel_*.tif'))
                 masks += mask_paths
             else:
-                image_paths = sorted(self.satellite_dir.glob(f'{canton}_parcel_*.tif'))
+                image_paths = sorted(self.satellite_dir.glob(f'{canton}_*_parcel_*.tif'))
+                image_paths = [str(path) for path in image_paths if 'upscaled' not in str(path)] 
                 images += image_paths
-                mask_paths = sorted(self.mask_dir.glob(f'{canton}_upscaled_parcel_*.tif'))
+                mask_paths = sorted(self.mask_dir.glob(f'{canton}_*_parcel_*.tif'))
                 masks += mask_paths
+        print(f"Found {len(images)} images and {len(masks)} masks.")
+        
         
         # Shuffle the dataset:
         images = [str(path) for path in images]
@@ -147,7 +150,7 @@ class CreateTensorflowDataset:
 if __name__ == '__main__':
     data_path = '/workspaces/Satelite/data'
     upscaled = False
-    list_of_cantons = ['AG', 'AI']
+    list_of_cantons = ['ZH']
     loader = CreateTensorflowDataset(data_path, list_of_cantons, upscaled)
 
 

@@ -2,11 +2,6 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Concatenate, Conv2DTranspose
 from tensorflow.keras.layers import BatchNormalization, Activation, Multiply
 
-from tensorflow.keras import Model
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Concatenate, Conv2DTranspose
-from tensorflow.keras.layers import BatchNormalization, Activation, Multiply
-from tensorflow.keras.initializers import HeNormal
-
 class AttentionUNet:
     """
     Attention U-Net architecture for semantic segmentation of satellite images.
@@ -71,11 +66,14 @@ class AttentionUNet:
         d2 = self.decoder_block(d3, s2, 128)
         d1 = self.decoder_block(d2, s1, 64)
 
-        # Additional upsampling layer
-        u = Conv2DTranspose(32, (2, 2), strides=2, padding='same')(d1)
-        u = self.conv_block(u, 32)
+        # Additional upsampling layers
+        u1 = Conv2DTranspose(32, (2, 2), strides=2, padding='same')(d1)
+        u1 = self.conv_block(u1, 32)
+
+        u2 = Conv2DTranspose(16, (2, 2), strides=2, padding='same')(u1)
+        u2 = self.conv_block(u2, 16)
 
         # Output layer
-        outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(u)
+        outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(u2)
 
         return Model(inputs, outputs, name='AttentionUNet')
