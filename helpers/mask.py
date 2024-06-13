@@ -38,7 +38,8 @@ class ProcessMask:
         satellite_files = glob.glob(satellite_pattern)
         self.parcel_path = parcel_files[0]
         self.satellite_path = satellite_files[0]
-        self.mask_name = self.satellite_path.split('/')[-1]
+        # Mask name = parcel name
+        self.mask_name = self.parcel_path.split('/')[-1].replace('.gpkg', '.tif')
 
         self.parcel = gpd.read_file(self.parcel_path)
         # Make a copy of the parcel data to avoid modifying the original
