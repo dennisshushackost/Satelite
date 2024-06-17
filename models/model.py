@@ -431,8 +431,8 @@ def Deep_Attention_RESUNET(input_shape, NUM_CLASSES=106, dropout_rate=0.0, batch
     
     # 1*1 convolutional layers
     conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
-   # conv_final = layers.BatchNormalization(axis=axis)(conv_final)
-   # conv_final = layers.Activation('softmax')(conv_final)  #Change to softmax for multichannel
+    conv_final = layers.BatchNormalization(axis=axis)(conv_final)
+    conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
     # Model integration
     model = models.Model(inputs, conv_final, name="AttentionResUNet")
     print(model.summary())
