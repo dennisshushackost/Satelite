@@ -68,6 +68,23 @@ class CreateTensorflowDataset:
         tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
         tensor.set_shape(self.mask_shape)
         return tensor
+    
+    def process_mask_special(self, mask_path):
+        """
+        Tensorflow function to process the masks for tensorflow datasets
+        :param mask_path: A string of the mask path
+        :return: tensorflow compatible uint8 image
+        """
+
+        def _load_mask(path):
+            with rasterio.open(path.decode("utf-8")) as src:
+                mask = src.read()  # Read all channels
+                mask = np.transpose(mask, (1, 2, 0))  # Reshape to (height, width, channels)
+                return mask.astype(np.uint8)
+
+        tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
+        tensor.set_shape(self.mask_shape)
+        return tensor
        
     def save_file_mapping(self, indices, images, masks, filename):
         mapping = [{'index': index, 'image': image, 'mask': mask} for index, image, mask in zip(indices, images, masks)]

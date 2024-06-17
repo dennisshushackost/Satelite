@@ -139,6 +139,9 @@ class CreateGrid:
 
         ]
         self.data = self.data[~self.data['nutzung'].isin(to_remove)]
+        # Stores the class ID of the Nutzung for later use:
+        nutzung_to_class = {nutzung: idx for idx, nutzung in enumerate(self.data['nutzung'].unique(), start=1)}
+        self.data['class_id'] = self.data['nutzung'].map(nutzung_to_class)
         return self.data
 
     def remove_non_essential_grid_cells(self, grid):
@@ -200,6 +203,6 @@ class CreateGrid:
             print('No essential cells to save.')
 
 if __name__ == "__main__":
-    data_path = "C:/Users/dshus/Documents/Satelite/data/ZH.gpkg"
-    boundary_path = "C:/Users/dshus/Documents/Satelite/data/ZH.geojson"
+    data_path = "/workspaces/Satelite/data/ZH.gpkg"
+    boundary_path = "/workspaces/Satelite/data/ZH.geojson"
     grid = CreateGrid(data_path, boundary_path, cell_size=2500, non_essential_cells=0.1)

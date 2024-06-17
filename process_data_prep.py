@@ -53,6 +53,12 @@ def create_parcels(canton: str, trimmed, upscaling, combine_adjacent=True):
 
 def create_mask(canton: str, scaled=False):
         path_gpkg = f"{base_path}/{canton}.gpkg"
+        simplified = path_gpkg.replace(".gpkg", "_simplified.gpkg")
+        path_gpkg_simplified = Path(simplified)
+        # Get the amount of possible classes: 
+        parcels = gpd.read_file(path_gpkg_simplified)
+        classes = parcels['class_id'].unique()
+        print(f"Processing {len(classes)} classes for canton {canton}")
         path_images = f"{str(Path(base_path).parent)}/data/satellite"
         print(path_images)
         if not scaled:
@@ -83,10 +89,10 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
+    # create_satellite(canton)  # This will block until all satellite tasks are finished
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
-    # create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
+    create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
     time.sleep(10)
     # create_tensorflow_dataset(canton)
 

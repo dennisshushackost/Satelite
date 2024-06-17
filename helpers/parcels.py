@@ -82,6 +82,19 @@ class ProcessParcels:
             trimmed_parcels = trimmed_parcels[trimmed_parcels['area'] > 5000]
         trimmed_parcels = gpd.overlay(trimmed_parcels, data_mask_gdf, how='intersection')
         return trimmed_parcels
+    
+    def combine_adjacent_parcels(self, parcels):
+        """
+        Combines adjacent parcels with the same 'nutzung' type while preserving 'nutzung' and 'class_id'.
+        """
+        parcels['geometry'] = parcels.buffer(0.1)
+        combined = parcels.dissolve(by='nutzung')
+        exploded = combined.explode(index_parts=True).reset_index()
+        exploded['geometry'] = exploded['geometry'].buffer(-0.1)
+        exploded['geometry'] = exploded['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
+        exploded['area'] = exploded['geometry'].area
+        exploded = exploded[['geometry', 'nutzung', 'area', 'class_id']]  # Ensure class_id is included
+        return exploded
 
     def process_parcels(self):
         """
@@ -114,26 +127,7 @@ class ProcessParcels:
             output_path = os.path.join(self.parcel_data_path, file_name.split('.')[0] + ".gpkg")
             trimmed_parcels.to_file(output_path, driver="GPKG")
 
-    def combine_adjacent_parcels(self, parcels):
-        """
-        Combines adjacent parcels with the same 'nutzung' type.
-        """
-        # Buffer to combine adjacent parcels
-        parcels['geometry'] = parcels.buffer(0.1)
-        combined = parcels.dissolve(by='nutzung')
-
-        # Explode multi-part geometries into single parts
-        combined = combined.explode(index_parts=False).reset_index(drop=True)
-
-        # Remove the buffer
-        combined['geometry'] = combined.buffer(-0.1)
-        
-        # Ensure valid geometries
-        combined['geometry'] = combined['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
-        combined['area'] = combined['geometry'].area
-        
-        return combined
 
 if __name__ == "__main__":
-    data_path = "/Users/dennis/Documents/GitHub/Satelite/data/ZH.gpkg"
+    data_path = "/workspaces/Satelite/data/ZH.gpkg"
     grid = ProcessParcels(data_path, trimmed=False, combine_adjacent=True, upscaling=False)

@@ -337,18 +337,22 @@ def Attention_ResUNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=T
     up_256 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_128)
     up_conv_256 = res_conv_block(up_256, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
 
-    # 1*1 convolutional layers
+    # 1*1 Upscale convolutional layers
+    up_512 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_256)
+    up_conv_512 = res_conv_block(up_512, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
     
-    conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_256)
+
+    # 1*1 convolutional layers
+    conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
     conv_final = layers.BatchNormalization(axis=axis)(conv_final)
-    conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
+    conv_final = layers.Activation('linear')(conv_final)  #Change to softmax for multichannel
 
     # Model integration
     model = models.Model(inputs, conv_final, name="AttentionResUNet")
     print(model.summary())
     return model
 
-def Deep_Attention_RESUNET(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
+def Deep_Attention_RESUNET(input_shape, NUM_CLASSES=106, dropout_rate=0.0, batch_norm=True):
     '''
     Residual UNet, with attention 
     
@@ -424,17 +428,16 @@ def Deep_Attention_RESUNET(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_n
     # UpRes 14
     up_512 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_256)
     up_conv_512 = res_conv_block(up_512, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-
+    
     # 1*1 convolutional layers
     conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
-    conv_final = layers.BatchNormalization(axis=axis)(conv_final)
-    conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
-
+   # conv_final = layers.BatchNormalization(axis=axis)(conv_final)
+   # conv_final = layers.Activation('softmax')(conv_final)  #Change to softmax for multichannel
     # Model integration
     model = models.Model(inputs, conv_final, name="AttentionResUNet")
     print(model.summary())
     return model
-    
+
     
     
 
@@ -499,5 +502,5 @@ def DeepUnet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
     print(model.summary())
     return model
 
-model = Deep_Attention_RESUNET((256, 256, 4), NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True)
+model = Deep_Attention_RESUNET((256, 256, 4), dropout_rate=0.0, batch_norm=True)
 model.summary()
