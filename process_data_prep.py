@@ -9,7 +9,7 @@ import time
 from helpers.grid import CreateGrid
 from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
-from helpers.mask import ProcessMask
+from helpers.multimask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
 list_of_cantons = ['ZH']
 base_path = "/workspaces/Satelite/data/"
@@ -72,8 +72,9 @@ def create_mask(canton: str, scaled=False):
         for satellite_image in tqdm(satelite_images, desc="Creating masks"):
             parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
             try:
-                process = ProcessMask(path_gpkg, parcel_index, upscaled=scaled)
-                process.create_border_mask(border_width=border_width)
+                process = ProcessMask(path_gpkg, parcel_index, classes, upscaled=scaled)
+                process.create_border_mask(border_width=1)
+                process.create_multiclass_mask()
             except Exception as e:
                 logging.error(f"Error creating mask for canton {canton}: {e}")
         
@@ -89,7 +90,7 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    # create_satellite(canton)  # This will block until all satellite tasks are finished
+    #create_satellite(canton)  # This will block until all satellite tasks are finished
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
     create_mask(canton, scaled=False)      # Create masks with upscaled satellite images

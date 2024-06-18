@@ -31,7 +31,7 @@ class CreateTensorflowDataset:
             self.mask_shape = [512, 512, 1]
         else:
             self.image_shape = [256, 256, 4]
-            self.mask_shape = [512, 512, 1]
+            self.mask_shape = [512, 512, 106]
         self.prepare_dataset()
 
 
@@ -51,7 +51,7 @@ class CreateTensorflowDataset:
         tensor.set_shape(self.image_shape)
         return tensor
 
-    def process_mask(self, mask_path):
+    def process_mask_special(self, mask_path):
         """
         Tesnorflow function to process the masks for tensorflow datasets
         :param mask_path: A string of the mask path
@@ -69,7 +69,7 @@ class CreateTensorflowDataset:
         tensor.set_shape(self.mask_shape)
         return tensor
     
-    def process_mask_special(self, mask_path):
+    def process_mask(self, mask_path):
         """
         Tensorflow function to process the masks for tensorflow datasets
         :param mask_path: A string of the mask path

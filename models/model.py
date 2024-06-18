@@ -491,8 +491,8 @@ def DeepUnet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
 
     # 1*1 convolutional layers
     conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
-    conv_final = layers.BatchNormalization(axis=3)(conv_final)
-    conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
+    #conv_final = layers.BatchNormalization(axis=3)(conv_final)
+    #conv_final = layers.Activation('softmax')(conv_final)  #Change to softmax for multichannel
 
     # Model 
     model = models.Model(inputs, conv_final, name="UNet")
