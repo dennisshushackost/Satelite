@@ -11,7 +11,7 @@ from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.multimask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
-list_of_cantons = ['ZH']
+list_of_cantons = ['CH']
 base_path = "/workspaces/Satelite/data/"
 cell_size = 2500
 threshold = 0.1
@@ -90,7 +90,7 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
     # create_grid(canton)
-    #create_satellite(canton)  # This will block until all satellite tasks are finished
+    create_satellite(canton)  # This will block until all satellite tasks are finished
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
     create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
