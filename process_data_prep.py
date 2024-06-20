@@ -9,9 +9,9 @@ import time
 from helpers.grid import CreateGrid
 from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
-from helpers.multimask import ProcessMask
+from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
-list_of_cantons = ['CH']
+list_of_cantons = ['ZH']
 base_path = "/workspaces/Satelite/data/"
 cell_size = 2500
 threshold = 0.1
@@ -29,8 +29,9 @@ upscale = False
 
 def create_grid(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
+    boundary_path = f"{base_path}/{canton}.geojson"
     logging.info(f"Processing canton {canton}: Creating grid")
-    CreateGrid(data_path=path_gpkg, cell_size=cell_size, non_essential_cells=threshold)
+    CreateGrid(data_path=path_gpkg, boundary_path = boundary_path, cell_size=cell_size, non_essential_cells=threshold)
 
 def create_satellite(canton: str):
         path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -56,9 +57,6 @@ def create_mask(canton: str, scaled=False):
         simplified = path_gpkg.replace(".gpkg", "_simplified.gpkg")
         path_gpkg_simplified = Path(simplified)
         # Get the amount of possible classes: 
-        parcels = gpd.read_file(path_gpkg_simplified)
-        classes = parcels['class_id'].unique()
-        print(f"Processing {len(classes)} classes for canton {canton}")
         path_images = f"{str(Path(base_path).parent)}/data/satellite"
         print(path_images)
         if not scaled:
@@ -72,9 +70,8 @@ def create_mask(canton: str, scaled=False):
         for satellite_image in tqdm(satelite_images, desc="Creating masks"):
             parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
             try:
-                process = ProcessMask(path_gpkg, parcel_index, classes, upscaled=scaled)
-                process.create_border_mask(border_width=1)
-                process.create_multiclass_mask()
+                process = ProcessMask(path_gpkg, parcel_index, upscaled=scaled)
+                process.create_border_mask(border_width=border_width)
             except Exception as e:
                 logging.error(f"Error creating mask for canton {canton}: {e}")
         
@@ -89,11 +86,12 @@ def create_tensorflow_dataset(canton: str):
 
 def process_canton(canton: str):
     #logging.info(f"Starting processing for canton {canton}")
-    # create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
-    # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
-    # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
+    #create_grid(canton)
+    #create_satellite(canton)  # This will block until all satellite tasks are finished
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
     create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
+    create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
     time.sleep(10)
     # create_tensorflow_dataset(canton)
 
@@ -101,3 +99,6 @@ if __name__ == "__main__":
     for canton in list_of_cantons:
         print(f"Processing canton {canton}")
         process_canton(canton)
+
+
+
