@@ -15,51 +15,20 @@ from tensorflow.keras import models, layers, regularizers
 from tensorflow.keras import backend as K
 
 
-
-# Metrics if needed:
-def dice_coef(y_true, y_pred):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (2.0 * intersection + 1.0) / (K.sum(y_true_f) + K.sum(y_pred_f) + 1.0)
-
-
-def jacard_coef(y_true, y_pred):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (intersection + 1.0) / (K.sum(y_true_f) + K.sum(y_pred_f) - intersection + 1.0)
-
-
-def jacard_coef_loss(y_true, y_pred):
-    return -jacard_coef(y_true, y_pred)
-
-
-def dice_coef_loss(y_true, y_pred):
-    return -dice_coef(y_true, y_pred)
-
-
-
-
 def conv_block(x, filter_size, size, dropout, batch_norm=False):
     """
     This is a convolutional block with Batch Normalization and ReLU activation.
-    
     """
-    
     conv = layers.Conv2D(size, (filter_size, filter_size), padding="same")(x)
     if batch_norm is True:
         conv = layers.BatchNormalization(axis=3)(conv)
     conv = layers.Activation("relu")(conv)
-
     conv = layers.Conv2D(size, (filter_size, filter_size), padding="same")(conv)
     if batch_norm is True:
         conv = layers.BatchNormalization(axis=3)(conv)
     conv = layers.Activation("relu")(conv)
-    
     if dropout > 0:
         conv = layers.Dropout(dropout)(conv)
-
     return conv
 
 
@@ -68,7 +37,6 @@ def repeat_elem(tensor, rep):
     #by a factor of rep.
     # If tensor has shape (None, 256,256,3), lambda will return a tensor of shape 
     #(None, 256,256,6), if specified axis=3 and rep=2.
-
      return layers.Lambda(lambda x, repnum: K.repeat_elements(x, repnum, axis=3),
                           arguments={'repnum': rep})(tensor)
 
@@ -151,21 +119,15 @@ def attention_block(x, gating, inter_shape):
     return result_bn
 
 
-
-
-def UNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
+def unet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
     '''
-    UNet, 
-    
+    UNet
     '''
     # network structure
     FILTER_NUM = 64 # number of filters for the first layer
     FILTER_SIZE = 3 # size of the convolutional filter
     UP_SAMP_SIZE = 2 # size of upsampling filters
-    
-
     inputs = layers.Input(input_shape, dtype=tf.float32)
-
     # Downsampling layers
     # DownRes 1, convolution + pooling
     conv_128 = conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
@@ -181,51 +143,154 @@ def UNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
     pool_8 = layers.MaxPooling2D(pool_size=(2,2))(conv_16)
     # DownRes 5, convolution only
     conv_8 = conv_block(pool_8, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
-
     # Upsampling layers
-   
     up_16 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(conv_8)
     up_16 = layers.concatenate([up_16, conv_16], axis=3)
     up_conv_16 = conv_block(up_16, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
     # UpRes 7
-    
     up_32 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_16)
     up_32 = layers.concatenate([up_32, conv_32], axis=3)
     up_conv_32 = conv_block(up_32, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
     # UpRes 8
-    
     up_64 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_32)
     up_64 = layers.concatenate([up_64, conv_64], axis=3)
     up_conv_64 = conv_block(up_64, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
     # UpRes 9
-   
     up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
     up_128 = layers.concatenate([up_128, conv_128], axis=3)
     up_conv_128 = conv_block(up_128, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-
     # 1*1 convolutional layers
-   
     conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_128)
     conv_final = layers.BatchNormalization(axis=3)(conv_final)
     conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
-
     # Model 
     model = models.Model(inputs, conv_final, name="UNet")
     print(model.summary())
     return model
 
-def Attention_UNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
-    '''
-    Attention UNet, 
     
+
+def deepunet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
+    '''
+    Deeper UNET
+    
+    '''
+    # network structure
+    FILTER_NUM = 32 # number of filters for the first layer
+    FILTER_SIZE = 3 # size of the convolutional filter
+    UP_SAMP_SIZE = 2 # size of upsampling filters
+    inputs = layers.Input(input_shape, dtype=tf.float32)
+    # Downsampling layers
+    # DownRes 1, convolution + pooling
+    conv_256 = conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
+    pool_128 = layers.MaxPooling2D(pool_size=(2,2))(conv_256)
+    # DownRes 2
+    conv_128 = conv_block(pool_128, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
+    pool_64 = layers.MaxPooling2D(pool_size=(2,2))(conv_128)
+    # DownRes 3
+    conv_64 = conv_block(pool_64, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
+    pool_32 = layers.MaxPooling2D(pool_size=(2,2))(conv_64)
+    # DownRes 4
+    conv_32 = conv_block(pool_32, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
+    pool_16 = layers.MaxPooling2D(pool_size=(2,2))(conv_32)
+    # DownRes 5, convolution only
+    conv_16 = conv_block(pool_16, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
+    # Upsampling layers
+    # UpRes 6
+    up_32 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(conv_16)
+    up_32 = layers.concatenate([up_32, conv_32], axis=3)
+    up_conv_32 = conv_block(up_32, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
+    # UpRes 7
+    up_64 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_32)
+    up_64 = layers.concatenate([up_64, conv_64], axis=3)
+    up_conv_64 = conv_block(up_64, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
+    # UpRes 8
+    up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
+    up_128 = layers.concatenate([up_128, conv_128], axis=3)
+    up_conv_128 = conv_block(up_128, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
+    # UpRes 9
+    up_256 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_128)
+    up_256 = layers.concatenate([up_256, conv_256], axis=3)
+    up_conv_256 = conv_block(up_256, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
+    # UpRes 10
+    up_512 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_256)
+    up_conv_512 = conv_block(up_512, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
+    # UpRes 11
+    # 1*1 convolutional layers
+    conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
+    conv_final = layers.BatchNormalization(axis=3)(conv_final)
+    conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
+    # Model 
+    model = models.Model(inputs, conv_final, name="UNet")
+    print(model.summary())
+    return model
+
+def resunet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
+    FILTER_NUM = 64
+    FILTER_SIZE = 3
+    UP_SAMP_SIZE = 2
+
+    inputs = layers.Input(input_shape, dtype=tf.float32)
+    axis = 3
+
+    conv_128 = res_conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
+    pool_64 = layers.MaxPooling2D(pool_size=(2, 2))(conv_128)
+
+    conv_64 = res_conv_block(pool_64, FILTER_SIZE, 2 * FILTER_NUM, dropout_rate, batch_norm)
+    pool_32 = layers.MaxPooling2D(pool_size=(2, 2))(conv_64)
+
+    conv_32 = res_conv_block(pool_32, FILTER_SIZE, 4 * FILTER_NUM, dropout_rate, batch_norm)
+    pool_16 = layers.MaxPooling2D(pool_size=(2, 2))(conv_32)
+
+    conv_16 = res_conv_block(pool_16, FILTER_SIZE, 8 * FILTER_NUM, dropout_rate, batch_norm)
+    pool_8 = layers.MaxPooling2D(pool_size=(2, 2))(conv_16)
+
+    conv_8 = res_conv_block(pool_8, FILTER_SIZE, 16 * FILTER_NUM, dropout_rate, batch_norm)
+
+    gating_16 = gating_signal(conv_8, 8 * FILTER_NUM, batch_norm)
+    att_16 = attention_block(conv_16, gating_16, 8 * FILTER_NUM)
+    up_16 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(conv_8)
+    up_16 = layers.concatenate([up_16, att_16], axis=axis)
+    up_conv_16 = res_conv_block(up_16, FILTER_SIZE, 8 * FILTER_NUM, dropout_rate, batch_norm)
+
+    gating_32 = gating_signal(up_conv_16, 4 * FILTER_NUM, batch_norm)
+    att_32 = attention_block(conv_32, gating_32, 4 * FILTER_NUM)
+    up_32 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_16)
+    up_32 = layers.concatenate([up_32, att_32], axis=axis)
+    up_conv_32 = res_conv_block(up_32, FILTER_SIZE, 4 * FILTER_NUM, dropout_rate, batch_norm)
+
+    gating_64 = gating_signal(up_conv_32, 2 * FILTER_NUM, batch_norm)
+    att_64 = attention_block(conv_64, gating_64, 2 * FILTER_NUM)
+    up_64 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_32)
+    up_64 = layers.concatenate([up_64, att_64], axis=axis)
+    up_conv_64 = res_conv_block(up_64, FILTER_SIZE, 2 * FILTER_NUM, dropout_rate, batch_norm)
+
+    gating_128 = gating_signal(up_conv_64, FILTER_NUM, batch_norm)
+    att_128 = attention_block(conv_128, gating_128, FILTER_NUM)
+    up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
+    up_128 = layers.concatenate([up_128, att_128], axis=axis)
+    up_conv_128 = res_conv_block(up_128, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
+    up_conv_256 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_128)
+    up_conv_256 = res_conv_block(up_conv_256, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
+
+    conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1, 1))(up_conv_256)
+    conv_final = layers.BatchNormalization(axis=axis)(conv_final)
+    conv_final = layers.Activation('sigmoid')(conv_final)
+
+    model = models.Model(inputs, conv_final, name="ResUNet")
+    print(model.summary())
+    return model
+
+
+def attunet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
+    '''
+    Attention UNet
     '''
     # network structure
     FILTER_NUM = 64 # number of basic filters for the first layer
     FILTER_SIZE = 3 # size of the convolutional filter
     UP_SAMP_SIZE = 2 # size of upsampling filters
-    
     inputs = layers.Input(input_shape, dtype=tf.float32)
-
     # Downsampling layers
     # DownRes 1, convolution + pooling
     conv_128 = conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
@@ -241,7 +306,6 @@ def Attention_UNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True
     pool_8 = layers.MaxPooling2D(pool_size=(2,2))(conv_16)
     # DownRes 5, convolution only
     conv_8 = conv_block(pool_8, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
-
     # Upsampling layers
     # UpRes 6, attention gated concatenation + upsampling + double residual convolution
     gating_16 = gating_signal(conv_8, 8*FILTER_NUM, batch_norm)
@@ -267,17 +331,15 @@ def Attention_UNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True
     up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
     up_128 = layers.concatenate([up_128, att_128], axis=3)
     up_conv_128 = conv_block(up_128, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-
     # 1*1 convolutional layers
     conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_128)
     conv_final = layers.BatchNormalization(axis=3)(conv_final)
     conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
-
     # Model integration
     model = models.Model(inputs, conv_final, name="Attention_UNet")
     return model
 
-def Attention_ResUNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
+def resattunet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
     '''
     Rsidual UNet, with attention 
     
@@ -290,7 +352,6 @@ def Attention_ResUNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=T
     # dimension of the image depth
     inputs = layers.Input(input_shape, dtype=tf.float32)
     axis = 3
-
     # Downsampling layers
     # DownRes 1, double residual convolution + pooling
     conv_128 = res_conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
@@ -306,7 +367,6 @@ def Attention_ResUNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=T
     pool_8 = layers.MaxPooling2D(pool_size=(2,2))(conv_16)
     # DownRes 5, convolution only
     conv_8 = res_conv_block(pool_8, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
-
     # Upsampling layers
     # UpRes 6, attention gated concatenation + upsampling + double residual convolution
     gating_16 = gating_signal(conv_8, 8*FILTER_NUM, batch_norm)
@@ -332,172 +392,17 @@ def Attention_ResUNet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=T
     up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
     up_128 = layers.concatenate([up_128, att_128], axis=axis)
     up_conv_128 = res_conv_block(up_128, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-    
     # Upscale:
     up_256 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_128)
     up_conv_256 = res_conv_block(up_256, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-
     # 1*1 convolutional layers
-    
     conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_256)
     conv_final = layers.BatchNormalization(axis=axis)(conv_final)
     conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
-
     # Model integration
     model = models.Model(inputs, conv_final, name="AttentionResUNet")
     print(model.summary())
     return model
 
-def Deep_Attention_RESUNET(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
-    '''
-    Residual UNet, with attention 
-    
-    '''
-    # network structure
-    FILTER_NUM = 64 # number of basic filters for the first layer
-    FILTER_SIZE = 3 # size of the convolutional filter
-    UP_SAMP_SIZE = 2 # size of upsampling filters
-    # input data
-    # dimension of the image depth
-    inputs = layers.Input(input_shape, dtype=tf.float32)
-    axis = 3
-
-    # Downsampling layers
-    # DownRes 1, double residual convolution + pooling
-    conv_256 = res_conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-    pool_128 = layers.MaxPooling2D(pool_size=(2,2))(conv_256)
-    # DownRes 2
-    conv_128 = res_conv_block(pool_128, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
-    pool_64 = layers.MaxPooling2D(pool_size=(2,2))(conv_128)
-    # DownRes 3
-    conv_64 = res_conv_block(pool_64, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
-    pool_32 = layers.MaxPooling2D(pool_size=(2,2))(conv_64)
-    # DownRes 4
-    conv_32 = res_conv_block(pool_32, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
-    pool_16 = layers.MaxPooling2D(pool_size=(2,2))(conv_32)
-    # DownRes 5
-    conv_16 = res_conv_block(pool_16, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
-    pool_8 = layers.MaxPooling2D(pool_size=(2,2))(conv_16)
-    # DownRes 6
-    conv_8 = res_conv_block(pool_8, FILTER_SIZE, 32*FILTER_NUM, dropout_rate, batch_norm)
-    pool_4 = layers.MaxPooling2D(pool_size=(2,2))(conv_8)
-    # DownRes 7, convolution only
-    conv_4 = res_conv_block(pool_4, FILTER_SIZE, 64*FILTER_NUM, dropout_rate, batch_norm)
-
-    # Upsampling layers
-    # UpRes 8, attention gated concatenation + upsampling + double residual convolution
-    gating_8 = gating_signal(conv_4, 32*FILTER_NUM, batch_norm)
-    att_8 = attention_block(conv_8, gating_8, 32*FILTER_NUM)
-    up_8 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(conv_4)
-    up_8 = layers.concatenate([up_8, att_8], axis=axis)
-    up_conv_8 = res_conv_block(up_8, FILTER_SIZE, 32*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 9
-    gating_16 = gating_signal(up_conv_8, 16*FILTER_NUM, batch_norm)
-    att_16 = attention_block(conv_16, gating_16, 16*FILTER_NUM)
-    up_16 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_8)
-    up_16 = layers.concatenate([up_16, att_16], axis=axis)
-    up_conv_16 = res_conv_block(up_16, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 10
-    gating_32 = gating_signal(up_conv_16, 8*FILTER_NUM, batch_norm)
-    att_32 = attention_block(conv_32, gating_32, 8*FILTER_NUM)
-    up_32 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_16)
-    up_32 = layers.concatenate([up_32, att_32], axis=axis)
-    up_conv_32 = res_conv_block(up_32, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 11
-    gating_64 = gating_signal(up_conv_32, 4*FILTER_NUM, batch_norm)
-    att_64 = attention_block(conv_64, gating_64, 4*FILTER_NUM)
-    up_64 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_32)
-    up_64 = layers.concatenate([up_64, att_64], axis=axis)
-    up_conv_64 = res_conv_block(up_64, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 12
-    gating_128 = gating_signal(up_conv_64, 2*FILTER_NUM, batch_norm)
-    att_128 = attention_block(conv_128, gating_128, 2*FILTER_NUM)
-    up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
-    up_128 = layers.concatenate([up_128, att_128], axis=axis)
-    up_conv_128 = res_conv_block(up_128, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 13
-    gating_256 = gating_signal(up_conv_128, FILTER_NUM, batch_norm)
-    att_256 = attention_block(conv_256, gating_256, FILTER_NUM)
-    up_256 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_128)
-    up_256 = layers.concatenate([up_256, att_256], axis=axis)
-    up_conv_256 = res_conv_block(up_256, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 14
-    up_512 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_256)
-    up_conv_512 = res_conv_block(up_512, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-
-    # 1*1 convolutional layers
-    conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
-    conv_final = layers.BatchNormalization(axis=axis)(conv_final)
-    conv_final = layers.Activation('sigmoid')(conv_final)  #Change to softmax for multichannel
-
-    # Model integration
-    model = models.Model(inputs, conv_final, name="AttentionResUNet")
-    print(model.summary())
-    return model
-    
-    
-    
-
-def DeepUnet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
-    '''
-    UNet, 
-    
-    '''
-    # network structure
-    FILTER_NUM = 32 # number of filters for the first layer
-    FILTER_SIZE = 3 # size of the convolutional filter
-    UP_SAMP_SIZE = 2 # size of upsampling filters
-    
-
-    inputs = layers.Input(input_shape, dtype=tf.float32)
-
-    # Downsampling layers
-    # DownRes 1, convolution + pooling
-    conv_256 = conv_block(inputs, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-    pool_128 = layers.MaxPooling2D(pool_size=(2,2))(conv_256)
-    # DownRes 2
-    conv_128 = conv_block(pool_128, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
-    pool_64 = layers.MaxPooling2D(pool_size=(2,2))(conv_128)
-    # DownRes 3
-    conv_64 = conv_block(pool_64, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
-    pool_32 = layers.MaxPooling2D(pool_size=(2,2))(conv_64)
-    # DownRes 4
-    conv_32 = conv_block(pool_32, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
-    pool_16 = layers.MaxPooling2D(pool_size=(2,2))(conv_32)
-    # DownRes 5, convolution only
-    conv_16 = conv_block(pool_16, FILTER_SIZE, 16*FILTER_NUM, dropout_rate, batch_norm)
-
-    # Upsampling layers
-    # UpRes 6
-    up_32 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(conv_16)
-    up_32 = layers.concatenate([up_32, conv_32], axis=3)
-    up_conv_32 = conv_block(up_32, FILTER_SIZE, 8*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 7
-    up_64 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_32)
-    up_64 = layers.concatenate([up_64, conv_64], axis=3)
-    up_conv_64 = conv_block(up_64, FILTER_SIZE, 4*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 8
-    up_128 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_64)
-    up_128 = layers.concatenate([up_128, conv_128], axis=3)
-    up_conv_128 = conv_block(up_128, FILTER_SIZE, 2*FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 9
-    up_256 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_128)
-    up_256 = layers.concatenate([up_256, conv_256], axis=3)
-    up_conv_256 = conv_block(up_256, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 10
-    up_512 = layers.UpSampling2D(size=(UP_SAMP_SIZE, UP_SAMP_SIZE), data_format="channels_last")(up_conv_256)
-    up_conv_512 = conv_block(up_512, FILTER_SIZE, FILTER_NUM, dropout_rate, batch_norm)
-    # UpRes 11
-
-    # 1*1 convolutional layers
-    conv_final = layers.Conv2D(NUM_CLASSES, kernel_size=(1,1))(up_conv_512)
-    #conv_final = layers.BatchNormalization(axis=3)(conv_final)
-    #conv_final = layers.Activation('softmax')(conv_final)  #Change to softmax for multichannel
-
-    # Model 
-    model = models.Model(inputs, conv_final, name="UNet")
-    print(model.summary())
-    return model
-
-model = Deep_Attention_RESUNET((256, 256, 4), NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True)
+model = resattunet((256, 256, 4), NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True)
 model.summary()

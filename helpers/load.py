@@ -22,11 +22,12 @@ class LoadandAugment:
     7. Adding salt and pepper noise
     """
     
-    def __init__(self, dataset_path, data_type, batch, augmentation):
+    def __init__(self, dataset_path, data_type, batch, augmentation, upscale=False):
         self.dataset_path = dataset_path
         self.data_type = data_type
         self.batch = batch
         self.augmentation = augmentation
+        self.upscale = upscale
         self.load_and_augment()
         
     # Augmentation functions:
@@ -55,7 +56,7 @@ class LoadandAugment:
         mask = tf.image.rot90(mask, k=random_rotation)
         return image, mask
 
-    def add_gaussian_blur(self, image):
+    def add_gaussian_blur_256(self, image):
         """
         Apply gaussian blur to an already normalized image using scipy. 
         The function expects a tensorflow tensor and returns a blurred version of the image. 
@@ -71,6 +72,24 @@ class LoadandAugment:
         
         blurred_image = tf.numpy_function(_apply_blur, [image], tf.float32)
         blurred_image.set_shape([256, 256, 4])
+        return blurred_image
+    
+    def add_gaussian_blur_512(self, image):
+        """
+        Apply gaussian blur to an already normalized image using scipy. 
+        The function expects a tensorflow tensor and returns a blurred version of the image. 
+        Each band is blurred independently to maintain spectral integrity.
+        """
+        def _apply_blur(image):
+            # Define the standard deviation for the Gaussian Kernel: (Higher values will increase the blur)
+            sigma = np.random.uniform(0.5, 1.5)
+            blurred_image = np.zeros_like(image)
+            for i in range(4):
+                blurred_image[:, :, i] = gaussian_filter(image[:, :, i], sigma=sigma)
+            return blurred_image.astype(np.float32)
+        
+        blurred_image = tf.numpy_function(_apply_blur, [image], tf.float32)
+        blurred_image.set_shape([512, 512, 4])
         return blurred_image
     
     def add_speckle_noise(self, image):
@@ -119,7 +138,10 @@ class LoadandAugment:
     
         # Adds one of the following noises/blurs with a 50 % probability (Gaussian, speckle, salt and pepper, gaussian noise)
         if np.random.rand() > 0.5:
-            noise_functions = [self.add_gaussian_noise, self.add_speckle_noise, self.add_salt_and_pepper_noise, self.add_gaussian_blur, self.add_random_brightness]
+            if self.upscale == False:
+                noise_functions = [self.add_gaussian_noise, self.add_speckle_noise, self.add_salt_and_pepper_noise, self.add_gaussian_blur_256, self.add_random_brightness]
+            else:
+                noise_functions = [self.add_gaussian_noise, self.add_speckle_noise, self.add_salt_and_pepper_noise, self.add_gaussian_blur_512, self.add_random_brightness]
             noise_function = np.random.choice(noise_functions)
             image = noise_function(image)
         
