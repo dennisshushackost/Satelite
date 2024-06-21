@@ -403,6 +403,3 @@ def resattunet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
     model = models.Model(inputs, conv_final, name="AttentionResUNet")
     print(model.summary())
     return model
-
-model = resattunet((256, 256, 4), NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True)
-model.summary()
