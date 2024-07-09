@@ -12,6 +12,23 @@ class ParcelEvaluator:
     A class to evaluate and analyze parcel predictions against original parcels.
     This class compares original parcels with predicted parcels, calculates metrics,
     and identifies overpredictions and low-performing predictions.
+    
+    For evaluating the performance of the semantic segmentation model in this scenario, with the particular concern about not penalizing the model for overpredictions due to the spatial resolution and connectivity issues, we should consider metrics that focus on the accuracy and quality of the predictions with respect to the true positives and the handling of false negatives. As such we will be using the following metrics:
+    - True Positive: Correctly predicted area of the original parcel
+    - False Negative: Area of the original parcel not covered by the predicted parcels
+
+    We will thus use an adjusted IoU metric without considering false positives:
+    Original IoU = True Positive / (True Positive + False Positive + False Negative)
+    Adjusted IoU = True Positive / (True Positive + False Negative) = Recall = measures the ability of the model to find all the relevant cases (all original pixels).
+    1. Spatial resolution issues: The segmentation images may not have enough detail to precisely delineate parcel boundaries.
+    2. Connectivity problems: Predicted parcels may be erroneously connected due to imprecise boundary detection.
+    
+    The adjusted IoU (recall) focuses on how well the model identifies the actual parcel areas. A threshold of 0.7 is used to identify low IoU areas.
+        - This means areas which the model has trouble identifying correctly.
+    The overprediction error captures areas where the model predicts parcels that don't exist in the original data.
+        - This is calculated as the area of overpredicted parcels divided by the total area of original parcels.
+        - Shows if the model hallucinates parcels that don't exist / or should exist based on the spatelite images.
+    The Total Error is the sum of the overprediction error and the IoU error.
     """
 
     def __init__(self, original_dir, predicted_dir, canton_name):
@@ -162,6 +179,9 @@ class ParcelEvaluator:
                         true_positive, false_negative = self.calculate_overlap(original_polygon, intersecting_predictions)
                         true_positives.append(true_positive)
                         false_negatives.append(false_negative)
+                        # Normal IoU calculation for binary classification:
+                        # iou = true_positive / (true_positive + false_positive + false_negative)
+                        # Adjusted IoU calculation
                         adjusted_iou = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0
                         adjusted_ious.append(adjusted_iou)
                     
@@ -240,39 +260,50 @@ class ParcelEvaluator:
         canton_overprediction_gdf.to_file(f"{self.output_dir}/{self.canton_name}_overprediction.gpkg", driver="GPKG")
         canton_lowiou_gdf.to_file(f"{self.output_dir}/{self.canton_name}_lowiou.gpkg", driver="GPKG")
 
-        # Calculate canton-wide statistics
-        original_files = glob.glob(str(self.original_dir / f'{self.canton_name}_ZH_parcel_*.gpkg'))
-        print(f"Found {len(original_files)} original parcel files for canton-wide analysis")
-
-        if original_files:
-            all_original_parcels = gpd.GeoDataFrame(pd.concat([self.load_gdf(file) for file in original_files], ignore_index=True))
-            if not all_original_parcels.empty:
-                canton_original_total_area = all_original_parcels[all_original_parcels.geometry.area > 5000].geometry.area.sum()
-                canton_overpredicted_area = canton_analysis_gdf[canton_analysis_gdf['Overpredicted']].geometry.area.sum()
-                canton_low_iou_area = canton_analysis_gdf[canton_analysis_gdf['Low IoU']].geometry.area.sum()
-
-                canton_total_error = (canton_overpredicted_area + canton_low_iou_area) / canton_original_total_area if canton_original_total_area > 0 else 0
-                canton_overprediction_error = canton_overpredicted_area / canton_original_total_area if canton_original_total_area > 0 else 0
-                canton_iou_error = canton_low_iou_area / canton_original_total_area if canton_original_total_area > 0 else 0
-
-                canton_statistics = {
-                    'Parcel Name': self.canton_name,
-                    'Original Total Area (m²)': canton_original_total_area,
-                    'Overpredicted Area (m²)': canton_overpredicted_area,
-                    'Low IoU Area (m²)': canton_low_iou_area,
-                    'Total Error': canton_total_error,
-                    'Overprediction Error': canton_overprediction_error,
-                    'IoU Error': canton_iou_error
-                }
-
-                statistics.append(canton_statistics)
-            else:
-                print("Warning: All original parcels are empty after concatenation")
-        else:
-            print("Warning: No original parcel files found for canton-wide statistics calculation")
-
-        # Save all statistics to a single CSV file
+            # Calculate canton-wide statistics
         if statistics:
+            canton_name = self.canton_name
+            original_total_area = sum(stat['Original Total Area (m²)'] for stat in statistics)
+            overpredicted_area = sum(stat['Overpredicted Area (m²)'] for stat in statistics)
+            low_iou_area = sum(stat['Low IoU Area (m²)'] for stat in statistics)
+            avg_total_error = sum(stat['Total Error'] for stat in statistics) / len(statistics)
+            avg_overprediction_error = sum(stat['Overprediction Error'] for stat in statistics) / len(statistics)
+            avg_iou_error = sum(stat['IoU Error'] for stat in statistics) / len(statistics)
+
+            canton_statistics = {
+                'Parcel Name': '',  # Empty string to create a blank row
+                'Original Total Area (m²)': '',
+                'Overpredicted Area (m²)': '',
+                'Low IoU Area (m²)': '',
+                'Total Error': '',
+                'Overprediction Error': '',
+                'IoU Error': ''
+            }
+            statistics.append(canton_statistics)  # Add a blank row
+
+            canton_statistics = {
+                'Parcel Name': 'Canton Name',
+                'Original Total Area (m²)': 'Total Area of Parcels',
+                'Overpredicted Area (m²)': 'Overpredicted Area of Parcels',
+                'Low IoU Area (m²)': 'Low IoU Area of Parcels',
+                'Total Error': 'Total Average Error of Parcels',
+                'Overprediction Error': 'Average Overprediction Error of Parcels',
+                'IoU Error': 'Average IoU Error of Parcels'
+            }
+            statistics.append(canton_statistics)  # Add the new column names
+
+            canton_statistics = {
+                'Parcel Name': canton_name,
+                'Original Total Area (m²)': original_total_area,
+                'Overpredicted Area (m²)': overpredicted_area,
+                'Low IoU Area (m²)': low_iou_area,
+                'Total Error': avg_total_error,
+                'Overprediction Error': avg_overprediction_error,
+                'IoU Error': avg_iou_error
+            }
+            statistics.append(canton_statistics)  # Add the canton-wide statistics
+
+            # Save all statistics to a single CSV file
             with open(f"{self.output_dir}/statistics.csv", 'w', newline='') as csvfile:
                 fieldnames = statistics[0].keys()
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -282,7 +313,7 @@ class ParcelEvaluator:
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
 
-# Usage example
+    # Usage example
 evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels/",
                             "/workspaces/Satelite/data/experiment/predictions/",
                             "ZH")  # Assuming "ZH" is the canton name
