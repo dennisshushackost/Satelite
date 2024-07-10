@@ -14,7 +14,7 @@ from helpers.dataset import CreateTensorflowDataset
 list_of_cantons = ['CH']
 base_path = "/workspaces/Satelite/data/"
 cell_size = 2500
-threshold = 0.1
+threshold = 0.3
 target_size = 256  # Has to be divisible by 32 due to UNET architecture
 time_start = datetime(2023, 6, 1)
 time_end = datetime(2023, 7, 31)
@@ -86,7 +86,7 @@ def create_tensorflow_dataset(canton: str):
 
 def process_canton(canton: str):
     create_grid(canton)
-    # create_satellite(canton)  # This will block until all satellite tasks are finished
+    create_satellite(canton)  # This will block until all satellite tasks are finished
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
     #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images

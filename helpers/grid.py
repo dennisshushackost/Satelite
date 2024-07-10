@@ -4,6 +4,7 @@ import geopandas as gpd
 from shapely.geometry import box
 from tqdm import tqdm
 import numpy as np
+from tqdm import tqdm
 
 # Ignore warnings
 warnings.filterwarnings('ignore')
@@ -26,28 +27,45 @@ class CreateGrid:
         - Grid cells that do not have a coverage ratio of at least 0.1 (can be changed).
     """
 
-    def __init__(self, data_path, boundary_path, cell_size=2500, non_essential_cells=0.1):
+    def __init__(self, data_path, boundary_path, cell_size=2500, non_essential_cells=0.3):
         self.data_path = Path(data_path)
         self.boundary_path = Path(boundary_path)
         self.canton_name = self.data_path.stem
+        self.to_remove_nutzungsflächen = [
+            "Übrige unproduktive Flächen (z.B. gemulchte Flächen, stark verunkrautete Flächen, Hecken ohne Pufferstreifen)",
+            "Hecken-, Feld- und Ufergehölze (mit Krautsaum)",
+            "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen)",
+            "Wald",
+            "Waldweiden (ohne bewaldete Fläche)",
+            "Wassergräben, Tümpel, Teiche",
+            "Ruderalflächen, Steinhaufen und -wälle",
+            "Unbefestigte, natürliche Wege",
+            "Hausgärten",
+            "Sömmerungsweiden", # In höheren Lagen
+            "Heuwiesen im Sömmerungsgebiet, Übrige Wiesen",
+            "Heuwiesen im Sömmerungsgebiet, Typ extensiv genutzte Wiese",
+            "Heuwiesen im Sömmerungsgebiet, Typ wenig intensiv genutzte Wiese",
+            "Heuwiesen mit Zufütterung während der Sömmerung",
+            "Streueflächen im Sömmerungsgebiet",
+            "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen) (regionsspezifische Biodiversitätsförderfläche)", # Sehr kleine Flächen
+            "Übrige Flächen ausserhalb der LN und SF", # Z.B. Waldränder
+            "Flächen ohne landwirtschaftliche Hauptzweckbestimmung (erschlossenes Bauland, Spiel-, Reit-, Camping-, Golf-, Flug- und Militärplätze oder ausgemarchte Bereiche von Eisenbahnen, öffentlichen Strassen und Gewässern)",
+            "Landwirtschaftliche Produktion in Gebäuden (z. B. Champignon, Brüsseler)",
+        ]
         self.cell_size = cell_size
         self.create_folders()
         self.data = gpd.read_file(self.data_path)
         self.border = gpd.read_file(self.boundary_path)
         self.non_essential_cells = non_essential_cells
+        
 
         # Ensure all data has the same CRS
         if self.data.crs != self.border.crs:
             self.border = self.border.to_crs(self.data.crs)
 
         # Simplify data
-        self.data = self.simplify_data()
         self.data = self.remove_nutzungsflächen()
-
-        # Save simplified data to a new file to preserve the original data
-        new_data_path = self.data_path.parent / f"{self.canton_name}_simplified.gpkg"
-        self.data.to_file(new_data_path, driver="GPKG")
-
+        self.data = self.simplify_data()
         self.crs = self.data.crs
         self.xmin, self.ymin, self.xmax, self.ymax = self.data.total_bounds
         self.create_grid()
@@ -65,6 +83,13 @@ class CreateGrid:
         """
         Simplifies and validates the geometries of the cantonal data.
         """
+        simplified_data_path = self.data_path.parent / f"{self.canton_name}_simplified.gpkg"
+        
+        if simplified_data_path.exists():
+            print(f"Loading existing simplified data from {simplified_data_path}")
+            return gpd.read_file(simplified_data_path)
+        
+        print("Simplified data not found. Creating new simplified data...")
         self.data = self.data.copy()
         # Explode MultiPolygons
         if any(self.data.geometry.type == 'MultiPolygon'):
@@ -72,6 +97,10 @@ class CreateGrid:
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
+        
+        # Save the simplified data
+        self.data.to_file(simplified_data_path, driver="GPKG")
+        print(f"Saved simplified data to {simplified_data_path}")
         return self.data
 
     def create_grid(self):
@@ -93,12 +122,13 @@ class CreateGrid:
         grid["cell_id"] = np.arange(1, len(grid_cells) + 1)
         grid.to_file(self.grid_path / f'{self.canton_name}_grid.gpkg', driver="GPKG")
         self.remove_non_essential_grid_cells(grid)
-
+        self.remove_parcels_with_high_nonessential_use()
 
     def remove_nutzungsflächen(self):
         """
         This removes certain land use types from the data.
-        """
+        """ 
+        
         to_remove = [
             "Buntbrache",
             "Rotationsbrache",
@@ -138,7 +168,8 @@ class CreateGrid:
             "Regionsspezifische Biodiversitätsförderfläche (Grünflächen ohne Weiden)"
 
         ]
-        self.data = self.data[~self.data['nutzung'].isin(to_remove)]
+        
+        self.data = self.data[~self.data['nutzung'].isin(self.to_remove_nutzungsflächen)]
         # Stores the class ID of the Nutzung for later use:
         nutzung_to_class = {nutzung: idx for idx, nutzung in enumerate(self.data['nutzung'].unique(), start=1)}
         self.data['class_id'] = self.data['nutzung'].map(nutzung_to_class)
@@ -146,61 +177,150 @@ class CreateGrid:
 
     def remove_non_essential_grid_cells(self, grid):
         """
+        I apologize for the confusion. You're right to ask for clarification. Let me break this down more precisely:
+        The grid cells are  2.5km x 2.5km, as defined by the cell_size=2500 parameter in the CreateGrid initialization.
+        The function operates on these 2.5km x 2.5km grid cells. Here's how it works for each grid cell:
+        a. First, it selects only the grid cells that are at least 5km away from the border.
+        b. For each of these selected grid cells, it finds all the parcels that intersect with the cell.
+        c. For each cell, it then calculates:
+
+        The total area of all parcels intersecting the cell
+        The number of parcels intersecting the cell
+        The number of small parcels (< 5000m2) intersecting the cell
+
+        d. It then computes for each 2.5km x 2.5km cell:
+
+        The coverage ratio: total area of parcels / area of the cell
+        The percentage of small parcels: number of small parcels / total number of parcels
+
+        e. Finally, it keeps only the 2.5km x 2.5km cells that meet both criteria:
+
+        The coverage ratio is above the threshold (self.non_essential_cells, which is 0.1 or 10% in your original code)
+        50% or fewer of the parcels intersecting the cell are small (< 5000m2)
         This removes the non-essential grid cells from the data. 
-        As such only the essential grid cells are used for further processing.
+        It removes:
+        1. Cells within 5 km of the border
+        2. Cells with low coverage ratio
+        3. Cells where the majority (>50%) of parcels are smaller than 5000m2
         """
         print('Removing non-essential grid cells...')
         grid['cell_area'] = grid['geometry'].area
 
-        # Perform spatial join between grid and border to find cells intersecting the border
-        joined = gpd.sjoin(grid, self.border, how='inner', predicate='intersects')
+        border_buffer = self.border.buffer(-500)
+        border_buffer_gdf = gpd.GeoDataFrame(geometry=border_buffer, crs=self.border.crs)
 
-        # Filter out cells that are not fully within the border
-        fully_within_cells = joined[joined.apply(lambda row: self.border.contains(row.geometry).all(), axis=1)]
+        cells_within_buffer = gpd.sjoin(grid, border_buffer_gdf, how='inner', predicate='within')
 
-        # Reset index to avoid conflicts in spatial join
-        fully_within_cells = fully_within_cells.reset_index(drop=True)
+        cells_within_buffer = cells_within_buffer.reset_index(drop=True)
         self.data = self.data.reset_index(drop=True)
 
-        # Drop index_left and index_right columns if they exist
-        if 'index_left' in fully_within_cells.columns:
-            fully_within_cells = fully_within_cells.drop(columns=['index_left'])
-        if 'index_right' in fully_within_cells.columns:
-            fully_within_cells = fully_within_cells.drop(columns=['index_right'])
-        if 'index_left' in self.data.columns:
-            self.data = self.data.drop(columns=['index_left'])
-        if 'index_right' in self.data.columns:
-            self.data = self.data.drop(columns=['index_right'])
+        if 'index_right' in cells_within_buffer.columns:
+            cells_within_buffer = cells_within_buffer.drop(columns=['index_right'])
 
-        # Perform spatial join between fully within cells and simplified parcel data
         print('Performing spatial join with simplified data...')
-        joined_simplified = gpd.sjoin(fully_within_cells, self.data, how='inner', predicate='intersects')
+        joined_simplified = gpd.sjoin(cells_within_buffer, self.data, how='inner', predicate='intersects')
         print(f'Number of joined cells with simplified data: {len(joined_simplified)}')
 
-        # Ensure 'area' from the simplified data is used for calculating coverage ratio
+        print("Columns in joined_simplified:", joined_simplified.columns)
+
+        # Use 'geometry' column directly
+        geometry_column = 'geometry'
+
+        # Calculate parcel sizes and flag small parcels
+        joined_simplified['parcel_size'] = joined_simplified[geometry_column].area
+        joined_simplified['is_small_parcel'] = joined_simplified['parcel_size'] < 5000
+
         print('Grouping joined cells by cell_id...')
         grouped = joined_simplified.groupby('cell_id').agg({
             'geometry': 'first',
             'area': 'sum',
             'cell_area': 'first',
-            'kanton': lambda x: x.value_counts().index[0]  # Majority vote for kanton
+            'kanton': lambda x: x.value_counts().index[0],
+            'is_small_parcel': ['count', 'sum']
         }).reset_index()
 
-        # Calculate the coverage ratio
-        grouped['coverage_ratio'] = grouped['area'] / grouped['cell_area']
+        grouped.columns = ['cell_id', 'geometry', 'area', 'cell_area', 'kanton', 'total_parcels', 'small_parcels']
 
-        # Filter essential cells based on coverage ratio
-        essential_cells = grouped[grouped['coverage_ratio'] >= self.non_essential_cells]
+        grouped['coverage_ratio'] = grouped['area'] / grouped['cell_area']
+        grouped['small_parcel_percentage'] = grouped['small_parcels'] / grouped['total_parcels']
+
+        essential_cells = grouped[
+            (grouped['coverage_ratio'] >= self.non_essential_cells) & 
+            (grouped['small_parcel_percentage'] <= 0.5)
+        ]
         print(f'Number of essential cells: {len(essential_cells)}')
 
-        # If there are essential cells, create the GeoDataFrame and save to file
         if not essential_cells.empty:
             essential_cells['cell_id'] = np.arange(1, len(essential_cells) + 1)
             essential_cells = gpd.GeoDataFrame(essential_cells, geometry='geometry', crs=grid.crs)
-            essential_cells.to_file(self.grid_path / f'{self.canton_name}_essential_grid.gpkg', driver="GPKG")
+            essential_cells.to_file(self.grid_path / f'{self.canton_name}_essential_grid_without_removal.gpkg', driver="GPKG")
             print('Saved essential grid cells.')
         else:
             print('No essential cells to save.')
+            
+    def remove_parcels_with_high_nonessential_use(self):
+        """
+        Removes grid cells with high non-essential land use and renumbers the remaining cells.
+        """
+        print('Removing parcels with high non-essential land use...')
+        
+        # Load the original data and essential grid
+        original_data = gpd.read_file(self.data_path)
+        essential_grid_path = self.grid_path / f'{self.canton_name}_essential_grid_without_removal.gpkg'
+        essential_grid = gpd.read_file(essential_grid_path)
+        
+        # Ensure CRS matches
+        if original_data.crs != self.crs:
+            original_data = original_data.to_crs(self.crs)
+        
+        # Identify non-essential land use
+        original_data['is_nonessential'] = original_data['nutzung'].isin(self.to_remove_nutzungsflächen)
+        
+        # Perform a spatial join between the grid and the original data
+        joined = gpd.sjoin(essential_grid, original_data, how='left', predicate='intersects')
+        
+        # Calculate intersection areas
+        joined['intersection_area'] = joined.apply(lambda row: row['geometry'].intersection(original_data.loc[row['index_right'], 'geometry']).area, axis=1)
+        joined['nonessential_area'] = joined.apply(lambda row: row['intersection_area'] if row['is_nonessential'] else 0, axis=1)
+        
+        # Calculate areas and non-essential percentages
+        grouped = joined.groupby('cell_id').agg({
+            'geometry': 'first',
+            'intersection_area': 'sum',
+            'nonessential_area': 'sum'
+        })
+        
+        grouped['nonessential_percentage'] = (grouped['nonessential_area'] / grouped['intersection_area']) * 100
+        
+        # Filter cells with less than 10% non-essential use
+        updated_grid = grouped[grouped['nonessential_percentage'] < 10].copy()
+        
+        # Reset index to keep the old cell_id as a column
+        updated_grid = updated_grid.reset_index()
+        
+        # Create a new cell_id column with updated numbering
+        updated_grid['new_cell_id'] = range(1, len(updated_grid) + 1)
+        
+        # Get the kanton from the essential_grid_without_removal
+        updated_grid['kanton'] = updated_grid['cell_id'].map(essential_grid.set_index('cell_id')['kanton'])
+        
+        # Ensure we keep all relevant columns that are actually present
+        columns_to_keep = ['new_cell_id', 'cell_id', 'geometry', 'kanton', 'nonessential_percentage']
+        for col in essential_grid.columns:
+            if col in updated_grid.columns and col not in columns_to_keep:
+                columns_to_keep.append(col)
+        
+        updated_grid = updated_grid[columns_to_keep]
+        
+        # Convert to GeoDataFrame
+        updated_grid = gpd.GeoDataFrame(updated_grid, geometry='geometry', crs=essential_grid.crs)
+        
+        # Save updated grid
+        output_path = self.grid_path / f'{self.canton_name}_essential_grid.gpkg'
+        updated_grid.to_file(output_path, driver="GPKG")
+        print(f'Saved refined essential grid with {len(updated_grid)} cells to {output_path}')
+        
+        return updated_grid
 
 if __name__ == "__main__":
     data_path = "/workspaces/Satelite/data/ZH.gpkg"
