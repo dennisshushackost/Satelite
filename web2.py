@@ -31,15 +31,18 @@ selected_canton = st.selectbox('Select a Canton', cantons)
 # Filter data
 if selected_canton == 'CH':
     filtered_gdf = gdf
+    filtered_stats_df = stats_df
 else:
     filtered_gdf = gdf[gdf['Canton'] == selected_canton]
+    filtered_stats_df = stats_df[stats_df['Canton'] == selected_canton]
 
 # Explicitly separate overpredicted parcels
 overpredicted_gdf = filtered_gdf[filtered_gdf['Overpredicted'] == True].copy()
 normal_gdf = filtered_gdf[filtered_gdf['Overpredicted'] != True].copy()
 
-# Apply recall filter only to normal parcels
+# Apply recall filter to both normal and overpredicted parcels
 normal_gdf = normal_gdf[(normal_gdf['Recall'] >= recall_range[0]) & (normal_gdf['Recall'] <= recall_range[1])]
+overpredicted_gdf = overpredicted_gdf[overpredicted_gdf['Recall'].isnull() | ((overpredicted_gdf['Recall'] >= recall_range[0]) & (overpredicted_gdf['Recall'] <= recall_range[1]))]
 
 # Create map
 fig = go.Figure()
@@ -53,42 +56,39 @@ hovertemplate = (
     "<b>Overpredicted:</b> %{customdata[4]}"
 )
 
-if show_overpredictions:
-    # Show only overpredicted parcels
-    if not overpredicted_gdf.empty:
-        fig.add_trace(go.Choroplethmapbox(
-            geojson=overpredicted_gdf.__geo_interface__,
-            locations=overpredicted_gdf.index,
-            z=overpredicted_gdf['Overpredicted'].astype(int),
-            colorscale=[[0, 'red'], [1, 'red']],
-            showscale=False,
-            marker_opacity=0.7,
-            marker_line_width=0,
-            customdata=overpredicted_gdf[['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted']],
-            hovertemplate=hovertemplate
-        ))
-    displayed_gdf = overpredicted_gdf
-else:
-    # Show normal parcels
-    if not normal_gdf.empty:
-        fig.add_trace(go.Choroplethmapbox(
-            geojson=normal_gdf.__geo_interface__,
-            locations=normal_gdf.index,
-            z=normal_gdf['Recall'],
-            colorscale="Viridis",
-            zmin=0,
-            zmax=1,
-            marker_opacity=0.7,
-            marker_line_width=0,
-            colorbar_title="Recall Score",
-            customdata=normal_gdf[['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted']],
-            hovertemplate=hovertemplate
-        ))
-    displayed_gdf = normal_gdf
+# Add normal parcels
+if not normal_gdf.empty:
+    fig.add_trace(go.Choroplethmapbox(
+        geojson=normal_gdf.__geo_interface__,
+        locations=normal_gdf.index,
+        z=normal_gdf['Recall'],
+        colorscale="Viridis",
+        zmin=0,
+        zmax=1,
+        marker_opacity=0.7,
+        marker_line_width=0,
+        colorbar_title="Recall Score",
+        customdata=normal_gdf[['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted']],
+        hovertemplate=hovertemplate
+    ))
 
-if not displayed_gdf.empty:
-    center_lat = displayed_gdf.geometry.centroid.y.mean()
-    center_lon = displayed_gdf.geometry.centroid.x.mean()
+# Add overpredicted parcels
+if show_overpredictions and not overpredicted_gdf.empty:
+    fig.add_trace(go.Choroplethmapbox(
+        geojson=overpredicted_gdf.__geo_interface__,
+        locations=overpredicted_gdf.index,
+        z=overpredicted_gdf['Recall'].isnull().astype(int),
+        colorscale=[[0, 'red'], [1, 'red']],
+        showscale=False,
+        marker_opacity=0.7,
+        marker_line_width=0,
+        customdata=overpredicted_gdf[['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted']],
+        hovertemplate=hovertemplate
+    ))
+
+if not filtered_gdf.empty:
+    center_lat = filtered_gdf.geometry.centroid.y.mean()
+    center_lon = filtered_gdf.geometry.centroid.x.mean()
 else:
     center_lat, center_lon = 47.3769, 8.5417  # Default to Zurich coordinates
 
@@ -97,24 +97,13 @@ fig.update_layout(
     mapbox_zoom=9,
     mapbox_center={"lat": center_lat, "lon": center_lon},
     margin={"r":0,"t":0,"l":0,"b":0},
-    height=600
+    height=700
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Display some statistics
+# Display statistics table
 st.subheader('Statistics')
-st.write(f"Total parcels displayed: {len(displayed_gdf)}")
-if not show_overpredictions:
-    st.write(f"Average Recall: {normal_gdf['Recall'].mean():.2f}")
-st.write(f"Total overpredicted parcels: {len(overpredicted_gdf)}")
-
-# Display parcel information on click
-if st.checkbox('Show Parcel Information'):
-    selected_parcel = st.selectbox('Select a parcel', displayed_gdf.index)
-    if selected_parcel:
-        parcel = displayed_gdf.loc[selected_parcel]
-        st.write("Parcel Information:")
-        for col in parcel.index:
-            if col != 'geometry':
-                st.write(f"{col}: {parcel[col]}")
+filtered_stats_df = filtered_stats_df.sort_values(by='Total Error', ascending=False)
+filtered_stats_df[['Original Total Area (m²)', 'Overpredicted Area (m²)', 'Low Recall Area (m²)', 'Total Error', 'Overprediction Error', 'Recall Error']] = filtered_stats_df[['Original Total Area (m²)', 'Overpredicted Area (m²)', 'Low Recall Area (m²)', 'Total Error', 'Overprediction Error', 'Recall Error']].round(2)
+st.dataframe(filtered_stats_df[['Parcel Name', 'Canton', 'Auschnitt', 'Original Total Area (m²)', 'Overpredicted Area (m²)', 'Low Recall Area (m²)', 'Total Error', 'Overprediction Error', 'Recall Error']], height=650)
