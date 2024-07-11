@@ -1,7 +1,7 @@
 import streamlit as st
 import geopandas as gpd
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 
 # Load data
 @st.cache_data
@@ -19,41 +19,89 @@ st.sidebar.header('Filters')
 recall_range = st.sidebar.slider('Recall Range', 0.0, 1.0, (0.0, 1.0), 0.1)
 show_overpredictions = st.sidebar.checkbox('Show Overpredictions')
 
+# Canton selection
+cantons = ['CH'] + sorted(gdf['Canton'].unique().tolist())
+selected_canton = st.selectbox('Select a Canton', cantons)
+
 # Filter data
-filtered_gdf = gdf[(gdf['Recall'] >= recall_range[0]) & (gdf['Recall'] <= recall_range[1])]
-if show_overpredictions:
-    filtered_gdf = filtered_gdf[filtered_gdf['Overpredicted']]
+if selected_canton == 'CH':
+    filtered_gdf = gdf
+else:
+    filtered_gdf = gdf[gdf['Canton'] == selected_canton]
+
+# Separate overpredicted parcels
+overpredicted_gdf = filtered_gdf[filtered_gdf['Overpredicted'] == True]
+normal_gdf = filtered_gdf[filtered_gdf['Overpredicted'] != True]
+
+# Apply recall filter only to normal parcels
+normal_gdf = normal_gdf[(normal_gdf['Recall'] >= recall_range[0]) & (normal_gdf['Recall'] <= recall_range[1])]
 
 # Create map
-fig = px.choropleth_mapbox(filtered_gdf,
-                           geojson=filtered_gdf.geometry.__geo_interface__,
-                           locations=filtered_gdf.index,
-                           color='Recall',
-                           color_continuous_scale="Viridis",
-                           range_color=(0, 1),
-                           mapbox_style="carto-positron",
-                           zoom=9,
-                           center={"lat": filtered_gdf.geometry.centroid.y.mean(), 
-                                   "lon": filtered_gdf.geometry.centroid.x.mean()},
-                           opacity=0.5,
-                           labels={'Recall':'Recall Score'}
-                          )
+fig = go.Figure()
 
-fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+# Hover template
+hovertemplate = (
+    "<b>Nutzung:</b> %{customdata[0]}<br>"
+    "<b>Area:</b> %{customdata[1]:.2f}<br>"
+    "<b>Canton:</b> %{customdata[2]}<br>"
+    "<b>Recall:</b> %{customdata[3]}<br>"
+    "<b>Overpredicted:</b> %{customdata[4]}"
+)
+
+if show_overpredictions:
+    # Show only overpredicted parcels
+    fig.add_trace(go.Choroplethmapbox(
+        geojson=overpredicted_gdf.geometry.__geo_interface__,
+        locations=overpredicted_gdf.index,
+        z=overpredicted_gdf['Overpredicted'],
+        colorscale=[[0, 'red'], [1, 'red']],
+        showscale=False,
+        marker_opacity=0.7,
+        marker_line_width=0,
+        customdata=overpredicted_gdf[['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted']],
+        hovertemplate=hovertemplate
+    ))
+    displayed_gdf = overpredicted_gdf
+else:
+    # Show normal parcels
+    fig.add_trace(go.Choroplethmapbox(
+        geojson=normal_gdf.geometry.__geo_interface__,
+        locations=normal_gdf.index,
+        z=normal_gdf['Recall'],
+        colorscale="Viridis",
+        zmin=0,
+        zmax=1,
+        marker_opacity=0.7,
+        marker_line_width=0,
+        colorbar_title="Recall Score",
+        customdata=normal_gdf[['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted']],
+        hovertemplate=hovertemplate
+    ))
+    displayed_gdf = normal_gdf
+
+fig.update_layout(
+    mapbox_style="carto-positron",
+    mapbox_zoom=9,
+    mapbox_center={"lat": displayed_gdf.geometry.centroid.y.mean(), "lon": displayed_gdf.geometry.centroid.x.mean()},
+    margin={"r":0,"t":0,"l":0,"b":0},
+    height=600
+)
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Display parcel information on click
-selected_parcel = st.selectbox('Select a parcel', filtered_gdf.index)
-if selected_parcel:
-    parcel = filtered_gdf.loc[selected_parcel]
-    st.write("Parcel Information:")
-    for col in parcel.index:
-        if col != 'geometry':
-            st.write(f"{col}: {parcel[col]}")
-
 # Display some statistics
 st.subheader('Statistics')
-st.write(f"Total parcels: {len(filtered_gdf)}")
-st.write(f"Average Recall: {filtered_gdf['Recall'].mean():.2f}")
-st.write(f"Overpredicted parcels: {filtered_gdf['Overpredicted'].sum()}")
+st.write(f"Total parcels displayed: {len(displayed_gdf)}")
+if not show_overpredictions:
+    st.write(f"Average Recall: {normal_gdf['Recall'].mean():.2f}")
+st.write(f"Total overpredicted parcels: {len(overpredicted_gdf)}")
+
+# Display parcel information on click
+if st.checkbox('Show Parcel Information'):
+    selected_parcel = st.selectbox('Select a parcel', displayed_gdf.index)
+    if selected_parcel:
+        parcel = displayed_gdf.loc[selected_parcel]
+        st.write("Parcel Information:")
+        for col in parcel.index:
+            if col != 'geometry':
+                st.write(f"{col}: {parcel[col]}")
