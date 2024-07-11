@@ -167,7 +167,7 @@ class CreateTensorflowDataset:
      
 if __name__ == '__main__':
     data_path = '/workspaces/Satelite/data'
-    upscaled = True
+    upscaled = False
     list_of_cantons = ['ZH']
     loader = CreateTensorflowDataset(data_path, list_of_cantons, upscaled)
 

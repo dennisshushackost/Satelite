@@ -87,10 +87,10 @@ def create_tensorflow_dataset(canton: str):
 def process_canton(canton: str):
     create_grid(canton)
     create_satellite(canton)  # This will block until all satellite tasks are finished
-    # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
-    # create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # Create parcels with upscaled satellite images
-    #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
-    #create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
+    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
+    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
+    create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
+    create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
     time.sleep(10)
     # create_tensorflow_dataset(canton)
 

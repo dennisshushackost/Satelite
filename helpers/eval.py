@@ -134,7 +134,7 @@ class ParcelEvaluator:
         calculates various metrics, and saves the results.
         """
         statistics = []
-        predicted_files = glob.glob(str(self.predicted_dir / f'{self.canton_name}_ZH_parcel_*.gpkg'))
+        predicted_files = glob.glob(str(self.predicted_dir / f'{self.canton_name}_CH_parcel_*.gpkg'))
 
         # Initialize canton-wide GeoDataFrames
         canton_analysis_gdf = gpd.GeoDataFrame()
@@ -165,8 +165,15 @@ class ParcelEvaluator:
                     analysis_gdf = self.explode_multipolygons(self.original_gdf)
                     analysis_gdf = analysis_gdf[analysis_gdf.geometry.area > 5000]
                     
+                    # Add canton name and Auschnitt name to the analysis GeoDataFrame
+                    analysis_gdf['Canton'] = self.canton_name
+                    analysis_gdf['Auschnitt'] = Path(predicted_file).stem
+                    
                     # Identify overpredicted areas
                     overpredicted_gdf = self.identify_overpredictions()
+                    
+                    # Add Auschnitt name to the overpredicted GeoDataFrame
+                    overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem
                     
                     # Calculate True Positive, False Negative, and Adjusted IoU for each parcel
                     true_positives = []
@@ -188,10 +195,10 @@ class ParcelEvaluator:
                     # Add calculated metrics to analysis GeoDataFrame
                     analysis_gdf['True Positive (m²)'] = true_positives
                     analysis_gdf['False Negative (m²)'] = false_negatives
-                    analysis_gdf['Adjusted IoU'] = adjusted_ious
+                    analysis_gdf['Recall'] = adjusted_ious
                     
                     # Add Low IoU flag
-                    analysis_gdf['Low IoU'] = analysis_gdf['Adjusted IoU'] <= 0.7
+                    analysis_gdf['Low Recall'] = analysis_gdf['Recall'] <= 0.7
                     
                     # Add overprediction flag to analysis GeoDataFrame
                     if not overpredicted_gdf.empty:
@@ -201,15 +208,17 @@ class ParcelEvaluator:
 
                     # Add overpredicted areas to analysis GeoDataFrame
                     if not overpredicted_gdf.empty:
-                        overpredicted_gdf['Adjusted IoU'] = None
+                        overpredicted_gdf['Recall'] = None
                         overpredicted_gdf['Overpredicted'] = True
-                        overpredicted_gdf['Low IoU'] = False
+                        overpredicted_gdf['Low Recall'] = False
                         overpredicted_gdf['True Positive (m²)'] = None
                         overpredicted_gdf['False Negative (m²)'] = None
+                        overpredicted_gdf['Canton'] = self.canton_name  # Add canton name to overpredicted GeoDataFrame
+                        overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem  # Add Auschnitt name to overpredicted GeoDataFrame
                         analysis_gdf = pd.concat([analysis_gdf, overpredicted_gdf], ignore_index=True)
 
                     # Ensure a parcel is only overpredicted if it has NULL as Adjusted IoU
-                    analysis_gdf.loc[analysis_gdf['Adjusted IoU'].notnull(), 'Overpredicted'] = False
+                    analysis_gdf.loc[analysis_gdf['Recall'].notnull(), 'Overpredicted'] = False
 
                     # Prepare output filename
                     output_filename = Path(filename).stem
@@ -222,13 +231,13 @@ class ParcelEvaluator:
                         overpredicted_gdf.to_file(f"{self.output_dir/output_filename}_overprediction.gpkg", driver="GPKG")
 
                     # Save low IoU results
-                    low_iou_gdf = analysis_gdf[analysis_gdf['Low IoU']]
-                    low_iou_gdf.to_file(f"{self.output_dir/output_filename}_lowiou.gpkg", driver="GPKG")
+                    low_iou_gdf = analysis_gdf[analysis_gdf['Low Recall']]
+                    low_iou_gdf.to_file(f"{self.output_dir/output_filename}_lowrecall.gpkg", driver="GPKG")
 
                     # Calculate statistics using the analysis_gdf
                     original_total_area = self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum()
                     overpredicted_area = analysis_gdf[analysis_gdf['Overpredicted']].geometry.area.sum()
-                    low_iou_area = analysis_gdf[analysis_gdf['Low IoU']].geometry.area.sum()
+                    low_iou_area = analysis_gdf[analysis_gdf['Low Recall']].geometry.area.sum()
 
                     total_error = (overpredicted_area + low_iou_area) / original_total_area if original_total_area > 0 else 0
                     overprediction_error = overpredicted_area / original_total_area if original_total_area > 0 else 0
@@ -236,12 +245,14 @@ class ParcelEvaluator:
 
                     parcel_statistics = {
                         'Parcel Name': output_filename,
+                        'Canton': self.canton_name,  # Add canton name to parcel statistics
+                        'Auschnitt': Path(predicted_file).stem,  # Add Auschnitt name to parcel statistics
                         'Original Total Area (m²)': original_total_area,
                         'Overpredicted Area (m²)': overpredicted_area,
-                        'Low IoU Area (m²)': low_iou_area,
+                        'Low Recall Area (m²)': low_iou_area,
                         'Total Error': total_error,
                         'Overprediction Error': overprediction_error,
-                        'IoU Error': iou_error
+                        'Recall Error': iou_error
                     }
 
                     statistics.append(parcel_statistics)
@@ -258,48 +269,54 @@ class ParcelEvaluator:
         # Save canton-wide GeoDataFrames
         canton_analysis_gdf.to_file(f"{self.output_dir}/{self.canton_name}_analysis.gpkg", driver="GPKG")
         canton_overprediction_gdf.to_file(f"{self.output_dir}/{self.canton_name}_overprediction.gpkg", driver="GPKG")
-        canton_lowiou_gdf.to_file(f"{self.output_dir}/{self.canton_name}_lowiou.gpkg", driver="GPKG")
+        canton_lowiou_gdf.to_file(f"{self.output_dir}/{self.canton_name}_lowrecall.gpkg", driver="GPKG")
 
-            # Calculate canton-wide statistics
+        # Calculate canton-wide statistics
         if statistics:
             canton_name = self.canton_name
             original_total_area = sum(stat['Original Total Area (m²)'] for stat in statistics)
             overpredicted_area = sum(stat['Overpredicted Area (m²)'] for stat in statistics)
-            low_iou_area = sum(stat['Low IoU Area (m²)'] for stat in statistics)
+            low_iou_area = sum(stat['Low Recall Area (m²)'] for stat in statistics)
             avg_total_error = sum(stat['Total Error'] for stat in statistics) / len(statistics)
             avg_overprediction_error = sum(stat['Overprediction Error'] for stat in statistics) / len(statistics)
-            avg_iou_error = sum(stat['IoU Error'] for stat in statistics) / len(statistics)
+            avg_iou_error = sum(stat['Recall Error'] for stat in statistics) / len(statistics)
 
             canton_statistics = {
                 'Parcel Name': '',  # Empty string to create a blank row
+                'Canton': '',  # Empty string to create a blank row
+                'Auschnitt': '',  # Empty string to create a blank row
                 'Original Total Area (m²)': '',
                 'Overpredicted Area (m²)': '',
-                'Low IoU Area (m²)': '',
+                'Low Recall Area (m²)': '',
                 'Total Error': '',
                 'Overprediction Error': '',
-                'IoU Error': ''
+                'Recall Error': ''
             }
             statistics.append(canton_statistics)  # Add a blank row
-
+            
             canton_statistics = {
-                'Parcel Name': 'Canton Name',
-                'Original Total Area (m²)': 'Total Area of Parcels',
-                'Overpredicted Area (m²)': 'Overpredicted Area of Parcels',
-                'Low IoU Area (m²)': 'Low IoU Area of Parcels',
-                'Total Error': 'Total Average Error of Parcels',
-                'Overprediction Error': 'Average Overprediction Error of Parcels',
-                'IoU Error': 'Average IoU Error of Parcels'
-            }
+            'Parcel Name': 'Canton Name',
+            'Canton': 'Canton',
+            'Auschnitt': 'Auschnitt',
+            'Original Total Area (m²)': 'Total Area of Parcels',
+            'Overpredicted Area (m²)': 'Overpredicted Area of Parcels',
+            'Low Recall Area (m²)': 'Low Recall Area of Parcels',
+            'Total Error': 'Total Average Error of Parcels',
+            'Overprediction Error': 'Average Overprediction Error of Parcels',
+            'Recall Error': 'Average Recall Error of Parcels'
+        }
             statistics.append(canton_statistics)  # Add the new column names
 
             canton_statistics = {
                 'Parcel Name': canton_name,
+                'Canton': canton_name,
+                'Auschnitt': 'All',
                 'Original Total Area (m²)': original_total_area,
                 'Overpredicted Area (m²)': overpredicted_area,
-                'Low IoU Area (m²)': low_iou_area,
+                'Low Recall Area (m²)': low_iou_area,
                 'Total Error': avg_total_error,
                 'Overprediction Error': avg_overprediction_error,
-                'IoU Error': avg_iou_error
+                'Recall Error': avg_iou_error
             }
             statistics.append(canton_statistics)  # Add the canton-wide statistics
 
@@ -312,9 +329,9 @@ class ParcelEvaluator:
                     writer.writerow(stat)
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
-
-    # Usage example
-evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels/",
-                            "/workspaces/Satelite/data/experiment/predictions/",
+                    
+# Usage example
+evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels",
+                            "/workspaces/Satelite/data/experiment/predictions",
                             "ZH")  # Assuming "ZH" is the canton name
 evaluator.analyze_parcels()

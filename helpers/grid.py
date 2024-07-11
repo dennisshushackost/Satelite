@@ -293,7 +293,7 @@ class CreateGrid:
         grouped['nonessential_percentage'] = (grouped['nonessential_area'] / grouped['intersection_area']) * 100
         
         # Filter cells with less than 10% non-essential use
-        updated_grid = grouped[grouped['nonessential_percentage'] < 10].copy()
+        updated_grid = grouped[grouped['nonessential_percentage'] < 20].copy()
         
         # Reset index to keep the old cell_id as a column
         updated_grid = updated_grid.reset_index()
