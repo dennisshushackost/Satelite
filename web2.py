@@ -14,6 +14,10 @@ if 'map_view' not in st.session_state:
     }
 if 'show_overpredictions' not in st.session_state:
     st.session_state.show_overpredictions = False
+if 'show_predictions' not in st.session_state:
+    st.session_state.show_predictions = False
+if 'show_recall_values' not in st.session_state:
+    st.session_state.show_recall_values = True
 if 'recall_range' not in st.session_state:
     st.session_state.recall_range = (0.0, 1.0)
 if 'selected_canton' not in st.session_state:
@@ -28,9 +32,13 @@ if 'selected_auschnitte' not in st.session_state:
 def load_data():
     gdf = gpd.read_file('/workspaces/Satelite/data/experiment/evaluation/analysis.gpkg')
     stats_df = pd.read_csv('/workspaces/Satelite/data/experiment/evaluation/statistics.csv')
-    return gdf.to_crs(epsg=4326), stats_df
+    predictions_gdf = gpd.read_file('/workspaces/Satelite/data/experiment/predictions/prediction_combined.gpkg')
+    return gdf.to_crs(epsg=4326), stats_df, predictions_gdf.to_crs(epsg=4326)
 
-gdf, stats_df = load_data()
+gdf, stats_df, predictions_gdf = load_data()
+
+# Extract canton from file_name in predictions_gdf
+predictions_gdf['Canton'] = predictions_gdf['file_name'].str[:2]
 
 st.title('Field Parcel Segmentation Analysis')
 
@@ -49,6 +57,8 @@ if new_recall_range != st.session_state.recall_range:
         pass
 
 new_show_overpredictions = st.sidebar.checkbox('Show Overpredictions', st.session_state.show_overpredictions)
+new_show_predictions = st.sidebar.checkbox('Show Predictions', st.session_state.show_predictions)
+new_show_recall_values = st.sidebar.checkbox('Show Recall Values', st.session_state.show_recall_values)
 
 # Canton selection
 cantons = ['CH'] + sorted(gdf['Canton'].unique().tolist())
@@ -56,6 +66,8 @@ new_selected_canton = st.selectbox('Select a Canton', cantons, index=cantons.ind
 
 # Update session state
 st.session_state.show_overpredictions = new_show_overpredictions
+st.session_state.show_predictions = new_show_predictions
+st.session_state.show_recall_values = new_show_recall_values
 if new_selected_canton != st.session_state.selected_canton:
     st.session_state.selected_canton = new_selected_canton
     st.session_state.selected_auschnitte = []  # Reset selected Auschnitte when canton changes
@@ -64,12 +76,15 @@ if new_selected_canton != st.session_state.selected_canton:
 if st.session_state.selected_canton == 'CH':
     filtered_gdf = gdf
     filtered_stats_df = stats_df
+    filtered_predictions_gdf = predictions_gdf
 else:
     filtered_gdf = gdf[gdf['Canton'] == st.session_state.selected_canton]
     filtered_stats_df = stats_df[stats_df['Canton'] == st.session_state.selected_canton]
+    filtered_predictions_gdf = predictions_gdf[predictions_gdf['Canton'] == st.session_state.selected_canton]
 
 if st.session_state.selected_auschnitte:
     filtered_gdf = filtered_gdf[filtered_gdf['Auschnitt'].isin(st.session_state.selected_auschnitte)]
+    filtered_predictions_gdf = filtered_predictions_gdf[filtered_predictions_gdf['file_name'].isin(st.session_state.selected_auschnitte)]
 
 # Explicitly separate overpredicted parcels
 overpredicted_gdf = filtered_gdf[filtered_gdf['Overpredicted'] == True].copy()
@@ -96,26 +111,34 @@ def create_map():
     def highlight_function(feature):
         return {'fillColor': '#000000', 'color': '#000000', 'fillOpacity': 0.50, 'weight': 0.1}
 
-    # Add normal parcels
-    folium.GeoJson(
-        normal_gdf,
-        style_function=style_function,
-        highlight_function=highlight_function,
-        tooltip=folium.GeoJsonTooltip(
-            fields=['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted', 'Auschnitt'],
-            aliases=['Nutzung', 'Area', 'Canton', 'Recall', 'Overpredicted', 'Auschnitt'],
-            localize=True,
-            sticky=False,
-            labels=True,
-            style="""
-                background-color: #F0EFEF;
-                border: 2px solid black;
-                border-radius: 3px;
-                box-shadow: 3px;
-            """,
-            max_width=800,
-        ),
-    ).add_to(m)
+    # Add predictions if checkbox is checked
+    if st.session_state.show_predictions:
+        folium.GeoJson(
+            filtered_predictions_gdf,
+            style_function=lambda x: {'fillColor': 'orange', 'color': 'black', 'weight': 1, 'fillOpacity': 0.5},
+        ).add_to(m)
+
+    # Add normal parcels if show_recall_values is checked
+    if st.session_state.show_recall_values:
+        folium.GeoJson(
+            normal_gdf,
+            style_function=style_function,
+            highlight_function=highlight_function,
+            tooltip=folium.GeoJsonTooltip(
+                fields=['nutzung', 'area', 'Canton', 'Recall', 'Overpredicted', 'Auschnitt'],
+                aliases=['Nutzung', 'Area', 'Canton', 'Recall', 'Overpredicted', 'Auschnitt'],
+                localize=True,
+                sticky=False,
+                labels=True,
+                style="""
+                    background-color: #F0EFEF;
+                    border: 2px solid black;
+                    border-radius: 3px;
+                    box-shadow: 3px;
+                """,
+                max_width=800,
+            ),
+        ).add_to(m)
 
     # Add overpredicted parcels if checkbox is checked
     if st.session_state.show_overpredictions:

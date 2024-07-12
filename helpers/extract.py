@@ -16,8 +16,9 @@ import modelup
 import matplotlib.pyplot as plt
 
 class ModelEvaluator:
-    def __init__(self, upscale, experiment_name, model_name, dataset_path):
+    def __init__(self, upscale, experiment_name, model_name, dataset_path, json_name):
         self.upscale = upscale
+        self.json_name = json_name
         self.experiment_name = experiment_name
         self.model_name = model_name
         self.dataset_path = Path(dataset_path)
@@ -28,7 +29,7 @@ class ModelEvaluator:
         self.output_dir.mkdir(exist_ok=True)
         
         # Load metadata of the test dataset: 
-        metadata_path = self.dataset_path / 'test_file_mapping.json'
+        metadata_path = self.dataset_path / self.json_name
         if metadata_path.exists():
             with open(metadata_path, 'r') as f:
                 self.metadata = json.load(f)
@@ -43,6 +44,7 @@ class ModelEvaluator:
             break
         print(f"Input shape determined from test dataset: {self.input_shape}")
         self.model = self.load_model()
+        self.all_polygons = []  # Attribute to store all polygons
 
     def load_model(self):
         if self.model_name == 'unet':
@@ -135,28 +137,49 @@ class ModelEvaluator:
             contour_image_file = self.output_dir / f"{tif_file.stem}_contours.png"
             self.plot_and_save_contours(mask, polygons, contour_image_file)
 
-        # Create a list to hold dictionaries for each polygon
-        polygon_data = []
-        for i, polygon in enumerate(polygons):
-            polygon_data.append({
-                    'id': i,
-                    'geometry': polygon
-                })
-
-        # Create GeoDataFrame with one row per polygon
-        gdf = self.create_geodataframe(polygon_data, crs)
+        # Create polygon data for this Auschnitt
+        polygon_data = [{'id': i, 'geometry': polygon} for i, polygon in enumerate(polygons)]
         
+        # Create and save GeoDataFrame for this Auschnitt
+        gdf = self.create_geodataframe(polygon_data, crs)
         output_gpkg = self.output_dir / f"{tif_file.stem}.gpkg"
         gdf.to_file(output_gpkg, driver="GPKG")
+        print(f"GeoPackage for {tif_file.stem} saved to {output_gpkg}")
+
+        # Append polygons to the all_polygons list for the combined GeoDataFrame
+        for polygon in polygons:
+            self.all_polygons.append({
+                'file_name': tif_file.stem,
+                'geometry': polygon
+            })
+
+    def create_final_geodataframe(self):
+        if not self.all_polygons:
+            print("No polygons extracted. Check your prediction process.")
+            return
+
+        # Create GeoDataFrame with all polygons
+        gdf = gpd.GeoDataFrame(self.all_polygons)
         
+        # Set the CRS to the CRS of the first polygon (assuming all have the same CRS)
+        with rasterio.open(Path(self.metadata[0]['mask'])) as src:
+            gdf.set_crs(src.crs, inplace=True)
+
+        # Save the final combined GeoDataFrame
+        output_gpkg = self.output_dir / "prediction_combined.gpkg"
+        gdf.to_file(output_gpkg, driver="GPKG")
+        print(f"Combined GeoPackage saved to {output_gpkg}")
+
     def run(self):
         self.evaluate()
         self.predict_and_save()
+        self.create_final_geodataframe()
 
 if __name__ == "__main__":
     upscale = False
+    json_name = 'test_file_mapping.json'
     experiment_name = 'resunet_experiment_up.h5'
     model_name = 'attunet'
     dataset_path = '/workspaces/Satelite/data/dataset_upscaled_False'
-    evaluator = ModelEvaluator(upscale, experiment_name, model_name, dataset_path)
+    evaluator = ModelEvaluator(upscale, experiment_name, model_name, dataset_path, json_name)
     evaluator.run()
