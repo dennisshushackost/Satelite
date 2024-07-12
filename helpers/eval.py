@@ -143,6 +143,11 @@ class ParcelEvaluator:
         canton_names = set(re.match(r"([A-Z]{2})_CH_parcel_\d+.gpkg", Path(f).name).group(1) for f in predicted_files)
         print(f"Found {len(canton_names)} cantons: {', '.join(canton_names)}")
         
+        # Initialize combined GeoDataFrames
+        all_analysis_gdf = gpd.GeoDataFrame()
+        all_lowrecall_gdf = gpd.GeoDataFrame()
+        all_overprediction_gdf = gpd.GeoDataFrame()
+
         for canton_name in canton_names:
             print(f"Processing canton: {canton_name}")
             # Initialize canton-wide GeoDataFrames
@@ -263,16 +268,24 @@ class ParcelEvaluator:
 
             print(f"Finished processing {canton_name}")
 
-            # Save canton-wide GeoDataFrames if not empty
+            # Append canton data to combined GeoDataFrames
             if not canton_analysis_gdf.empty:
-                canton_analysis_gdf.set_geometry('geometry', inplace=True)
-                canton_analysis_gdf.to_file(f"{self.output_dir}/{canton_name}_analysis.gpkg", driver="GPKG")
-            if not canton_overprediction_gdf.empty:
-                canton_overprediction_gdf.set_geometry('geometry', inplace=True)
-                canton_overprediction_gdf.to_file(f"{self.output_dir}/{canton_name}_overprediction.gpkg", driver="GPKG")
+                all_analysis_gdf = pd.concat([all_analysis_gdf, canton_analysis_gdf], ignore_index=True)
             if not canton_lowiou_gdf.empty:
-                canton_lowiou_gdf.set_geometry('geometry', inplace=True)
-                canton_lowiou_gdf.to_file(f"{self.output_dir}/{canton_name}_lowrecall.gpkg", driver="GPKG")
+                all_lowrecall_gdf = pd.concat([all_lowrecall_gdf, canton_lowiou_gdf], ignore_index=True)
+            if not canton_overprediction_gdf.empty:
+                all_overprediction_gdf = pd.concat([all_overprediction_gdf, canton_overprediction_gdf], ignore_index=True)
+
+        # Save combined GeoDataFrames
+        if not all_analysis_gdf.empty:
+            all_analysis_gdf.set_geometry('geometry', inplace=True)
+            all_analysis_gdf.to_file(f"{self.output_dir}/analysis.gpkg", driver="GPKG")
+        if not all_lowrecall_gdf.empty:
+            all_lowrecall_gdf.set_geometry('geometry', inplace=True)
+            all_lowrecall_gdf.to_file(f"{self.output_dir}/lowrecall.gpkg", driver="GPKG")
+        if not all_overprediction_gdf.empty:
+            all_overprediction_gdf.set_geometry('geometry', inplace=True)
+            all_overprediction_gdf.to_file(f"{self.output_dir}/overprediction.gpkg", driver="GPKG")
 
         # Print summary of statistics
         print(f"Total statistics gathered: {len(statistics)}")
@@ -342,7 +355,6 @@ class ParcelEvaluator:
                     writer.writerow(stat)
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
-
 # Usage example
 evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels",
                             "/workspaces/Satelite/data/experiment/predictions")

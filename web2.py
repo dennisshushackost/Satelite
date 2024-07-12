@@ -4,6 +4,7 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from branca.colormap import LinearColormap
+from datetime import datetime, timedelta
 
 # Initialize session state for map view and other variables
 if 'map_view' not in st.session_state:
@@ -17,13 +18,15 @@ if 'recall_range' not in st.session_state:
     st.session_state.recall_range = (0.0, 1.0)
 if 'selected_canton' not in st.session_state:
     st.session_state.selected_canton = 'CH'
-if 'show_zh_ch_parcel_2' not in st.session_state:
-    st.session_state.show_zh_ch_parcel_2 = False
+if 'last_update_time' not in st.session_state:
+    st.session_state.last_update_time = datetime.now()
+if 'selected_auschnitte' not in st.session_state:
+    st.session_state.selected_auschnitte = []
 
 # Load data
 @st.cache_data
 def load_data():
-    gdf = gpd.read_file('/workspaces/Satelite/data/experiment/evaluation/ZH_analysis.gpkg')
+    gdf = gpd.read_file('/workspaces/Satelite/data/experiment/evaluation/analysis.gpkg')
     stats_df = pd.read_csv('/workspaces/Satelite/data/experiment/evaluation/statistics.csv')
     return gdf.to_crs(epsg=4326), stats_df
 
@@ -34,6 +37,17 @@ st.title('Field Parcel Segmentation Analysis')
 # Sidebar for filters
 st.sidebar.header('Filters')
 new_recall_range = st.sidebar.slider('Recall Range', 0.0, 1.0, st.session_state.recall_range, 0.1)
+
+# Check if the recall range has changed
+if new_recall_range != st.session_state.recall_range:
+    current_time = datetime.now()
+    if current_time - st.session_state.last_update_time > timedelta(seconds=10):
+        st.session_state.recall_range = new_recall_range
+        st.session_state.last_update_time = current_time
+        st.rerun()
+    else:
+        pass
+
 new_show_overpredictions = st.sidebar.checkbox('Show Overpredictions', st.session_state.show_overpredictions)
 
 # Canton selection
@@ -41,11 +55,12 @@ cantons = ['CH'] + sorted(gdf['Canton'].unique().tolist())
 new_selected_canton = st.selectbox('Select a Canton', cantons, index=cantons.index(st.session_state.selected_canton))
 
 # Update session state
-st.session_state.recall_range = new_recall_range
 st.session_state.show_overpredictions = new_show_overpredictions
-st.session_state.selected_canton = new_selected_canton
+if new_selected_canton != st.session_state.selected_canton:
+    st.session_state.selected_canton = new_selected_canton
+    st.session_state.selected_auschnitte = []  # Reset selected Auschnitte when canton changes
 
-# Filter data based on the selected canton
+# Filter data based on the selected canton and auschnitte
 if st.session_state.selected_canton == 'CH':
     filtered_gdf = gdf
     filtered_stats_df = stats_df
@@ -53,9 +68,8 @@ else:
     filtered_gdf = gdf[gdf['Canton'] == st.session_state.selected_canton]
     filtered_stats_df = stats_df[stats_df['Canton'] == st.session_state.selected_canton]
 
-# Filter for ZH_CH_parcel_2 if button is clicked
-if st.session_state.show_zh_ch_parcel_2:
-    filtered_gdf = filtered_gdf[filtered_gdf['Auschnitt'] == 'ZH_CH_parcel_2']
+if st.session_state.selected_auschnitte:
+    filtered_gdf = filtered_gdf[filtered_gdf['Auschnitt'].isin(st.session_state.selected_auschnitte)]
 
 # Explicitly separate overpredicted parcels
 overpredicted_gdf = filtered_gdf[filtered_gdf['Overpredicted'] == True].copy()
@@ -135,10 +149,63 @@ def create_map():
 m = create_map()
 folium_static(m, width=700, height=500)
 
-# Button to show/hide ZH_CH_parcel_2
-if st.button('Toggle ZH_CH_parcel_2'):
-    st.session_state.show_zh_ch_parcel_2 = not st.session_state.show_zh_ch_parcel_2
-    st.experimental_rerun()
+# Display statistics table
+st.header('Statistics')
+
+# Sort the filtered_stats_df by Total Error in descending order
+filtered_stats_df = filtered_stats_df.sort_values('Total Error', ascending=False)
+
+# Add a 'Select' column to the dataframe
+filtered_stats_df['Select'] = filtered_stats_df['Auschnitt'].isin(st.session_state.selected_auschnitte)
+
+# Reorder columns to put Select and Auschnitt at the beginning
+cols = ['Select', 'Auschnitt', 'Canton'] + [col for col in filtered_stats_df.columns if col not in ['Select', 'Auschnitt', 'Canton']]
+filtered_stats_df = filtered_stats_df[cols]
+
+# Create a styled dataframe
+styled_df = filtered_stats_df.style.format({
+    'Area (m²)': '{:.2f}',
+    'Overpredicted (m²)': '{:.2f}',
+    'Low Recall  (m²)': '{:.2f}',
+    'Total Error': '{:.2f}',
+    'Overprediction Error': '{:.2f}',
+    'Recall Error': '{:.2f}'
+})
+
+# Apply background color to highlight selected rows
+def highlight_selected(s):
+    return ['background-color: #ADD8E6' if s.Select else '' for _ in s]
+
+styled_df = styled_df.apply(highlight_selected, axis=1)
+
+# Unselect All button
+if st.session_state.selected_auschnitte:
+    if st.button("Unselect All"):
+        st.session_state.selected_auschnitte = []
+        st.rerun()
+
+# Display the dataframe
+edited_df = st.data_editor(
+    styled_df,
+    hide_index=True,
+    column_config={
+        "Select": st.column_config.CheckboxColumn(
+            "Select",
+            help="Select Auschnitt",
+            default=False,
+        )
+    },
+    disabled=["Auschnitt", "Canton", "Area (m²)", "Overpredicted (m²)", "Low Recall  (m²)", "Total Error", "Overprediction Error", "Recall Error"],
+    key="edited_df"
+)
+
+# Update selected_auschnitte based on the checkboxes
+st.session_state.selected_auschnitte = edited_df[edited_df['Select'] == True]['Auschnitt'].tolist()
 
 # Display current filter state
-st.write(f"Showing ZH_CH_parcel_2 only: {st.session_state.show_zh_ch_parcel_2}")
+st.write(f"Selected Canton: {st.session_state.selected_canton}")
+st.write(f"Selected Auschnitte: {', '.join(st.session_state.selected_auschnitte) if st.session_state.selected_auschnitte else 'None'}")
+
+# Rerun the app if selections have changed
+if edited_df['Select'].tolist() != filtered_stats_df['Select'].tolist():
+    st.rerun()
