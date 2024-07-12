@@ -3,7 +3,9 @@ import pandas as pd
 from pathlib import Path
 import csv
 import warnings
+import itertools
 import glob
+import re 
 
 warnings.filterwarnings("ignore")
 
@@ -31,7 +33,7 @@ class ParcelEvaluator:
     The Total Error is the sum of the overprediction error and the IoU error.
     """
 
-    def __init__(self, original_dir, predicted_dir, canton_name):
+    def __init__(self, original_dir, predicted_dir):
         """
         Initialize the ParcelEvaluator with directories containing original and predicted parcel data.
         
@@ -43,7 +45,6 @@ class ParcelEvaluator:
         self.original_dir = Path(original_dir)
         self.predicted_dir = Path(predicted_dir)
         self.output_dir = self.create_folder()
-        self.canton_name = canton_name
 
     def create_folder(self):
         """Create output folder for evaluation results."""
@@ -127,6 +128,7 @@ class ParcelEvaluator:
         overpredicted_gdf = overpredicted_gdf[overpredicted_gdf.geometry.area > 5000]
         return overpredicted_gdf
 
+    
     def analyze_parcels(self):
         """
         Analyze parcels for all matching files in the directories.
@@ -134,204 +136,214 @@ class ParcelEvaluator:
         calculates various metrics, and saves the results.
         """
         statistics = []
-        predicted_files = glob.glob(str(self.predicted_dir / f'{self.canton_name}_CH_parcel_*.gpkg'))
+        predicted_files = glob.glob(str(self.predicted_dir / f'*_CH_parcel_*.gpkg'))
+        print(f"Found {len(predicted_files)} predicted files")
 
-        # Initialize canton-wide GeoDataFrames
-        canton_analysis_gdf = gpd.GeoDataFrame()
-        canton_overprediction_gdf = gpd.GeoDataFrame()
-        canton_lowiou_gdf = gpd.GeoDataFrame()
+        # Extract canton names from predicted files
+        canton_names = set(re.match(r"([A-Z]{2})_CH_parcel_\d+.gpkg", Path(f).name).group(1) for f in predicted_files)
+        print(f"Found {len(canton_names)} cantons: {', '.join(canton_names)}")
+        
+        for canton_name in canton_names:
+            print(f"Processing canton: {canton_name}")
+            # Initialize canton-wide GeoDataFrames
+            canton_analysis_gdf = gpd.GeoDataFrame()
+            canton_overprediction_gdf = gpd.GeoDataFrame()
+            canton_lowiou_gdf = gpd.GeoDataFrame()
+            
+            canton_predicted_files = [f for f in predicted_files if f.__contains__(f"{canton_name}_CH_parcel_")]
+            print(f"Found {len(canton_predicted_files)} files for canton {canton_name}")
 
-        for predicted_file in predicted_files:
-            filename = Path(predicted_file).name
-            original_file = self.original_dir / filename
+            for predicted_file in canton_predicted_files:
+                filename = Path(predicted_file).name
+                original_file = self.original_dir / filename
 
-            if original_file.exists():
-                try:
-                    # Load original and predicted GeoDataFrames
-                    self.original_gdf = self.load_gdf(original_file)
-                    self.predicted_gdf = self.load_gdf(predicted_file)
+                if original_file.exists():
+                    try:
+                        print(f"Processing file: {filename}")
+                        # Load original and predicted GeoDataFrames
+                        self.original_gdf = self.load_gdf(original_file)
+                        self.predicted_gdf = self.load_gdf(predicted_file)
 
-                    if self.original_gdf is None or self.predicted_gdf is None or self.original_gdf.empty or self.predicted_gdf.empty:
-                        print(f"Skipping {filename} due to loading error or empty GeoDataFrame")
+                        if self.original_gdf is None or self.predicted_gdf is None or self.original_gdf.empty or self.predicted_gdf.empty:
+                            print(f"Skipping {filename} due to loading error or empty GeoDataFrame")
+                            continue
+
+                        # Ensure CRS is set and matching
+                        if self.original_gdf.crs is None:
+                            self.original_gdf.set_crs(epsg=32632, inplace=True)
+                        if self.original_gdf.crs != self.predicted_gdf.crs:
+                            self.predicted_gdf = self.predicted_gdf.to_crs(self.original_gdf.crs)
+
+                        # Create analysis GeoDataFrame, explode MultiPolygons, and filter small parcels
+                        analysis_gdf = self.explode_multipolygons(self.original_gdf)
+                        analysis_gdf = analysis_gdf[analysis_gdf.geometry.area > 5000]
+
+                        # Add canton name and Auschnitt name to the analysis GeoDataFrame
+                        analysis_gdf['Canton'] = canton_name
+                        analysis_gdf['Auschnitt'] = Path(predicted_file).stem
+
+                        # Identify overpredicted areas
+                        overpredicted_gdf = self.identify_overpredictions()
+
+                        # Add Auschnitt name to the overpredicted GeoDataFrame
+                        overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem
+
+                        # Calculate True Positive, False Negative, and Adjusted IoU for each parcel
+                        true_positives = []
+                        false_negatives = []
+                        adjusted_ious = []
+                        for idx, original_row in analysis_gdf.iterrows():
+                            original_polygon = original_row.geometry
+                            # Find predicted parcels that intersect with the original polygon:
+                            intersecting_predictions = self.predicted_gdf[self.predicted_gdf.intersects(original_polygon)]
+                            true_positive, false_negative = self.calculate_overlap(original_polygon, intersecting_predictions)
+                            true_positives.append(true_positive)
+                            false_negatives.append(false_negative)
+                            # Adjusted IoU calculation
+                            adjusted_iou = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0
+                            adjusted_ious.append(adjusted_iou)
+
+                        # Add calculated metrics to analysis GeoDataFrame
+                        analysis_gdf['True Positive (m²)'] = true_positives
+                        analysis_gdf['False Negative (m²)'] = false_negatives
+                        analysis_gdf['Recall'] = adjusted_ious
+
+                        # Add Low IoU flag
+                        analysis_gdf['Low Recall'] = analysis_gdf['Recall'] <= 0.7
+
+                        # Create low_iou_gdf
+                        low_iou_gdf = analysis_gdf[analysis_gdf['Low Recall']]
+
+                        # Add overprediction flag to analysis GeoDataFrame
+                        if not overpredicted_gdf.empty:
+                            analysis_gdf['Overpredicted'] = analysis_gdf.geometry.intersects(overpredicted_gdf.unary_union)
+                        else:
+                            analysis_gdf['Overpredicted'] = False
+
+                        # Add overpredicted areas to analysis GeoDataFrame
+                        if not overpredicted_gdf.empty:
+                            overpredicted_gdf['Recall'] = None
+                            overpredicted_gdf['Overpredicted'] = True
+                            overpredicted_gdf['Low Recall'] = False
+                            overpredicted_gdf['True Positive (m²)'] = None
+                            overpredicted_gdf['False Negative (m²)'] = None
+                            overpredicted_gdf['Canton'] = canton_name
+                            overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem
+                            analysis_gdf = pd.concat([analysis_gdf, overpredicted_gdf], ignore_index=True)
+
+                        # Ensure a parcel is only overpredicted if it has NULL as Adjusted IoU
+                        analysis_gdf.loc[analysis_gdf['Recall'].notnull(), 'Overpredicted'] = False
+
+                        # Calculate statistics for this file
+                        file_stats = {
+                            'Canton': canton_name,
+                            'Auschnitt': Path(predicted_file).stem,
+                            'Area (m²)': self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
+                            'Overpredicted (m²)': overpredicted_gdf['geometry'].area.sum() if not overpredicted_gdf.empty else 0,
+                            'Low Recall  (m²)': low_iou_gdf['geometry'].area.sum(),
+                            'Total Error': ((overpredicted_gdf['geometry'].area.sum() if not overpredicted_gdf.empty else 0) + low_iou_gdf['geometry'].area.sum()) / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
+                            'Overprediction Error': overpredicted_gdf['geometry'].area.sum() / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
+                            'Recall Error': low_iou_gdf['geometry'].area.sum() / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum()
+                        }
+                        statistics.append(file_stats)
+
+                        # Save analysis results
+                        if not analysis_gdf.empty:
+                            canton_analysis_gdf = pd.concat([canton_analysis_gdf, analysis_gdf], ignore_index=True)
+                        if not overpredicted_gdf.empty:
+                            canton_overprediction_gdf = pd.concat([canton_overprediction_gdf, overpredicted_gdf], ignore_index=True)
+                        if not low_iou_gdf.empty:
+                            canton_lowiou_gdf = pd.concat([canton_lowiou_gdf, low_iou_gdf], ignore_index=True)
+
+                        print(f"Successfully processed {filename}")
+
+                    except Exception as e:
+                        print(f"Error processing {filename}: {e}")
                         continue
 
-                    # Ensure CRS is set and matching
-                    if self.original_gdf.crs is None:
-                        self.original_gdf.set_crs(epsg=32632, inplace=True)
-                    if self.original_gdf.crs != self.predicted_gdf.crs:
-                        self.predicted_gdf = self.predicted_gdf.to_crs(self.original_gdf.crs)
+            print(f"Finished processing {canton_name}")
 
-                    # Create analysis GeoDataFrame, explode MultiPolygons, and filter small parcels
-                    analysis_gdf = self.explode_multipolygons(self.original_gdf)
-                    analysis_gdf = analysis_gdf[analysis_gdf.geometry.area > 5000]
-                    
-                    # Add canton name and Auschnitt name to the analysis GeoDataFrame
-                    analysis_gdf['Canton'] = self.canton_name
-                    analysis_gdf['Auschnitt'] = Path(predicted_file).stem
-                    
-                    # Identify overpredicted areas
-                    overpredicted_gdf = self.identify_overpredictions()
-                    
-                    # Add Auschnitt name to the overpredicted GeoDataFrame
-                    overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem
-                    
-                    # Calculate True Positive, False Negative, and Adjusted IoU for each parcel
-                    true_positives = []
-                    false_negatives = []
-                    adjusted_ious = []
-                    for idx, original_row in analysis_gdf.iterrows():
-                        original_polygon = original_row.geometry
-                        # Find predicted parcels that intersect with the original polygon:
-                        intersecting_predictions = self.predicted_gdf[self.predicted_gdf.intersects(original_polygon)]
-                        true_positive, false_negative = self.calculate_overlap(original_polygon, intersecting_predictions)
-                        true_positives.append(true_positive)
-                        false_negatives.append(false_negative)
-                        # Normal IoU calculation for binary classification:
-                        # iou = true_positive / (true_positive + false_positive + false_negative)
-                        # Adjusted IoU calculation
-                        adjusted_iou = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0
-                        adjusted_ious.append(adjusted_iou)
-                    
-                    # Add calculated metrics to analysis GeoDataFrame
-                    analysis_gdf['True Positive (m²)'] = true_positives
-                    analysis_gdf['False Negative (m²)'] = false_negatives
-                    analysis_gdf['Recall'] = adjusted_ious
-                    
-                    # Add Low IoU flag
-                    analysis_gdf['Low Recall'] = analysis_gdf['Recall'] <= 0.7
-                    
-                    # Add overprediction flag to analysis GeoDataFrame
-                    if not overpredicted_gdf.empty:
-                        analysis_gdf['Overpredicted'] = analysis_gdf.geometry.intersects(overpredicted_gdf.unary_union)
-                    else:
-                        analysis_gdf['Overpredicted'] = False
+            # Save canton-wide GeoDataFrames if not empty
+            if not canton_analysis_gdf.empty:
+                canton_analysis_gdf.set_geometry('geometry', inplace=True)
+                canton_analysis_gdf.to_file(f"{self.output_dir}/{canton_name}_analysis.gpkg", driver="GPKG")
+            if not canton_overprediction_gdf.empty:
+                canton_overprediction_gdf.set_geometry('geometry', inplace=True)
+                canton_overprediction_gdf.to_file(f"{self.output_dir}/{canton_name}_overprediction.gpkg", driver="GPKG")
+            if not canton_lowiou_gdf.empty:
+                canton_lowiou_gdf.set_geometry('geometry', inplace=True)
+                canton_lowiou_gdf.to_file(f"{self.output_dir}/{canton_name}_lowrecall.gpkg", driver="GPKG")
 
-                    # Add overpredicted areas to analysis GeoDataFrame
-                    if not overpredicted_gdf.empty:
-                        overpredicted_gdf['Recall'] = None
-                        overpredicted_gdf['Overpredicted'] = True
-                        overpredicted_gdf['Low Recall'] = False
-                        overpredicted_gdf['True Positive (m²)'] = None
-                        overpredicted_gdf['False Negative (m²)'] = None
-                        overpredicted_gdf['Canton'] = self.canton_name  # Add canton name to overpredicted GeoDataFrame
-                        overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem  # Add Auschnitt name to overpredicted GeoDataFrame
-                        analysis_gdf = pd.concat([analysis_gdf, overpredicted_gdf], ignore_index=True)
+        # Print summary of statistics
+        print(f"Total statistics gathered: {len(statistics)}")
 
-                    # Ensure a parcel is only overpredicted if it has NULL as Adjusted IoU
-                    analysis_gdf.loc[analysis_gdf['Recall'].notnull(), 'Overpredicted'] = False
-
-                    # Prepare output filename
-                    output_filename = Path(filename).stem
-                    
-                    # Save analysis results
-                    analysis_gdf.to_file(f"{self.output_dir/output_filename}_analysis.gpkg", driver="GPKG")
-
-                    # Save overprediction results
-                    if not overpredicted_gdf.empty:
-                        overpredicted_gdf.to_file(f"{self.output_dir/output_filename}_overprediction.gpkg", driver="GPKG")
-
-                    # Save low IoU results
-                    low_iou_gdf = analysis_gdf[analysis_gdf['Low Recall']]
-                    low_iou_gdf.to_file(f"{self.output_dir/output_filename}_lowrecall.gpkg", driver="GPKG")
-
-                    # Calculate statistics using the analysis_gdf
-                    original_total_area = self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum()
-                    overpredicted_area = analysis_gdf[analysis_gdf['Overpredicted']].geometry.area.sum()
-                    low_iou_area = analysis_gdf[analysis_gdf['Low Recall']].geometry.area.sum()
-
-                    total_error = (overpredicted_area + low_iou_area) / original_total_area if original_total_area > 0 else 0
-                    overprediction_error = overpredicted_area / original_total_area if original_total_area > 0 else 0
-                    iou_error = low_iou_area / original_total_area if original_total_area > 0 else 0
-
-                    parcel_statistics = {
-                        'Parcel Name': output_filename,
-                        'Canton': self.canton_name,  # Add canton name to parcel statistics
-                        'Auschnitt': Path(predicted_file).stem,  # Add Auschnitt name to parcel statistics
-                        'Original Total Area (m²)': original_total_area,
-                        'Overpredicted Area (m²)': overpredicted_area,
-                        'Low Recall Area (m²)': low_iou_area,
-                        'Total Error': total_error,
-                        'Overprediction Error': overprediction_error,
-                        'Recall Error': iou_error
-                    }
-
-                    statistics.append(parcel_statistics)
-
-                    # Append to canton-wide GeoDataFrames
-                    canton_analysis_gdf = pd.concat([canton_analysis_gdf, analysis_gdf], ignore_index=True)
-                    canton_overprediction_gdf = pd.concat([canton_overprediction_gdf, overpredicted_gdf], ignore_index=True)
-                    canton_lowiou_gdf = pd.concat([canton_lowiou_gdf, low_iou_gdf], ignore_index=True)
-
-                except Exception as e:
-                    print(f"Error processing {filename}: {e}")
-                    continue
-
-        # Save canton-wide GeoDataFrames
-        canton_analysis_gdf.to_file(f"{self.output_dir}/{self.canton_name}_analysis.gpkg", driver="GPKG")
-        canton_overprediction_gdf.to_file(f"{self.output_dir}/{self.canton_name}_overprediction.gpkg", driver="GPKG")
-        canton_lowiou_gdf.to_file(f"{self.output_dir}/{self.canton_name}_lowrecall.gpkg", driver="GPKG")
-
-        # Calculate canton-wide statistics
+        # Save parcel statistics to a single CSV file
         if statistics:
-            canton_name = self.canton_name
-            original_total_area = sum(stat['Original Total Area (m²)'] for stat in statistics)
-            overpredicted_area = sum(stat['Overpredicted Area (m²)'] for stat in statistics)
-            low_iou_area = sum(stat['Low Recall Area (m²)'] for stat in statistics)
-            avg_total_error = sum(stat['Total Error'] for stat in statistics) / len(statistics)
-            avg_overprediction_error = sum(stat['Overprediction Error'] for stat in statistics) / len(statistics)
-            avg_iou_error = sum(stat['Recall Error'] for stat in statistics) / len(statistics)
+            # Round numeric values in statistics to 2 decimal places
+            for stat in statistics:
+                for key, value in stat.items():
+                    if isinstance(value, (int, float)):
+                        stat[key] = round(value, 2)
 
-            canton_statistics = {
-                'Parcel Name': '',  # Empty string to create a blank row
-                'Canton': '',  # Empty string to create a blank row
-                'Auschnitt': '',  # Empty string to create a blank row
-                'Original Total Area (m²)': '',
-                'Overpredicted Area (m²)': '',
-                'Low Recall Area (m²)': '',
-                'Total Error': '',
-                'Overprediction Error': '',
-                'Recall Error': ''
-            }
-            statistics.append(canton_statistics)  # Add a blank row
-            
-            canton_statistics = {
-            'Parcel Name': 'Canton Name',
-            'Canton': 'Canton',
-            'Auschnitt': 'Auschnitt',
-            'Original Total Area (m²)': 'Total Area of Parcels',
-            'Overpredicted Area (m²)': 'Overpredicted Area of Parcels',
-            'Low Recall Area (m²)': 'Low Recall Area of Parcels',
-            'Total Error': 'Total Average Error of Parcels',
-            'Overprediction Error': 'Average Overprediction Error of Parcels',
-            'Recall Error': 'Average Recall Error of Parcels'
-        }
-            statistics.append(canton_statistics)  # Add the new column names
-
-            canton_statistics = {
-                'Parcel Name': canton_name,
-                'Canton': canton_name,
-                'Auschnitt': 'All',
-                'Original Total Area (m²)': original_total_area,
-                'Overpredicted Area (m²)': overpredicted_area,
-                'Low Recall Area (m²)': low_iou_area,
-                'Total Error': avg_total_error,
-                'Overprediction Error': avg_overprediction_error,
-                'Recall Error': avg_iou_error
-            }
-            statistics.append(canton_statistics)  # Add the canton-wide statistics
-
-            # Save all statistics to a single CSV file
             with open(f"{self.output_dir}/statistics.csv", 'w', newline='') as csvfile:
-                fieldnames = statistics[0].keys()
+                fieldnames = list(statistics[0].keys())
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
                 for stat in statistics:
                     writer.writerow(stat)
+
+            # Calculate canton-wide statistics
+            overall_statistics = []
+            statistics.sort(key=lambda x: x['Canton'])
+            for canton, canton_stats in itertools.groupby(statistics, key=lambda x: x['Canton']):
+                canton_stats = list(canton_stats)
+                original_total_area = sum(stat['Area (m²)'] for stat in canton_stats)
+                overpredicted_area = sum(stat['Overpredicted (m²)'] for stat in canton_stats)
+                low_iou_area = sum(stat['Low Recall  (m²)'] for stat in canton_stats)
+                avg_total_error = sum(stat['Total Error'] for stat in canton_stats) / len(canton_stats)
+                avg_overprediction_error = sum(stat['Overprediction Error'] for stat in canton_stats) / len(canton_stats)
+                avg_iou_error = sum(stat['Recall Error'] for stat in canton_stats) / len(canton_stats)
+
+                canton_statistics = {
+                    'Canton': canton,
+                    'Area (m²)': round(original_total_area, 2),
+                    'Overpredicted (m²)': round(overpredicted_area, 2),
+                    'Low Recall  (m²)': round(low_iou_area, 2),
+                    'Average Total Error': round(avg_total_error, 2),
+                    'Average Overprediction Error': round(avg_overprediction_error, 2),
+                    'Average Recall Error': round(avg_iou_error, 2)
+                }
+                overall_statistics.append(canton_statistics)
+
+            # Calculate overall statistics for all cantons
+            overall_original_area = sum(stat['Area (m²)'] for stat in statistics)
+            overall_overpredicted_area = sum(stat['Overpredicted (m²)'] for stat in statistics)
+            overall_low_iou_area = sum(stat['Low Recall  (m²)'] for stat in statistics)
+            overall_total_error = sum(stat['Total Error'] for stat in statistics) / len(statistics)
+            overall_overprediction_error = sum(stat['Overprediction Error'] for stat in statistics) / len(statistics)
+            overall_iou_error = sum(stat['Recall Error'] for stat in statistics) / len(statistics)
+
+            overall_statistics.append({
+                'Canton': 'CH',
+                'Area (m²)': round(overall_original_area, 2),
+                'Overpredicted (m²)': round(overall_overpredicted_area, 2),
+                'Low Recall  (m²)': round(overall_low_iou_area, 2),
+                'Average Total Error': round(overall_total_error, 2),
+                'Average Overprediction Error': round(overall_overprediction_error, 2),
+                'Average Recall Error': round(overall_iou_error, 2)
+            })
+
+            # Save overall statistics to a single CSV file
+            with open(f"{self.output_dir}/overall_statistics.csv", 'w', newline='') as csvfile:
+                fieldnames = ['Canton', 'Area (m²)', 'Overpredicted (m²)', 'Low Recall  (m²)', 'Average Total Error', 'Average Overprediction Error', 'Average Recall Error']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for stat in overall_statistics:
+                    writer.writerow(stat)
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
-                    
+
 # Usage example
 evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels",
-                            "/workspaces/Satelite/data/experiment/predictions",
-                            "ZH")  # Assuming "ZH" is the canton name
+                            "/workspaces/Satelite/data/experiment/predictions")
 evaluator.analyze_parcels()
