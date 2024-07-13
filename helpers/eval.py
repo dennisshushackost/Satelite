@@ -147,6 +147,7 @@ class ParcelEvaluator:
         all_analysis_gdf = gpd.GeoDataFrame()
         all_lowrecall_gdf = gpd.GeoDataFrame()
         all_overprediction_gdf = gpd.GeoDataFrame()
+        all_original_gdf = gpd.GeoDataFrame()  # New GeoDataFrame for all original parcels
 
         for canton_name in canton_names:
             print(f"Processing canton: {canton_name}")
@@ -179,10 +180,15 @@ class ParcelEvaluator:
                         if self.original_gdf.crs != self.predicted_gdf.crs:
                             self.predicted_gdf = self.predicted_gdf.to_crs(self.original_gdf.crs)
 
+                        # Add all original parcels to the combined GeoDataFrame
+                        self.original_gdf['Canton'] = canton_name
+                        self.original_gdf['Auschnitt'] = Path(predicted_file).stem
+                        all_original_gdf = pd.concat([all_original_gdf, self.original_gdf], ignore_index=True)
+
                         # Create analysis GeoDataFrame, explode MultiPolygons, and filter small parcels
                         analysis_gdf = self.explode_multipolygons(self.original_gdf)
                         analysis_gdf = analysis_gdf[analysis_gdf.geometry.area > 5000]
-
+                        
                         # Add canton name and Auschnitt name to the analysis GeoDataFrame
                         analysis_gdf['Canton'] = canton_name
                         analysis_gdf['Auschnitt'] = Path(predicted_file).stem
@@ -260,6 +266,21 @@ class ParcelEvaluator:
                         if not low_iou_gdf.empty:
                             canton_lowiou_gdf = pd.concat([canton_lowiou_gdf, low_iou_gdf], ignore_index=True)
 
+                        # Save individual Auschnitt GeoPackages
+                        auschnitt_output_dir = self.output_dir / canton_name
+                        auschnitt_output_dir.mkdir(exist_ok=True)
+                        (auschnitt_output_dir / 'analysis').mkdir(exist_ok=True)
+                        (auschnitt_output_dir / 'lowrecall').mkdir(exist_ok=True)
+                        (auschnitt_output_dir / 'overprediction').mkdir(exist_ok=True)
+
+                        auschnitt_name = Path(predicted_file).stem
+                        if not analysis_gdf.empty:
+                            analysis_gdf.to_file(f"{auschnitt_output_dir}/analysis/{auschnitt_name}_analysis.gpkg", driver="GPKG")
+                        if not low_iou_gdf.empty:
+                            low_iou_gdf.to_file(f"{auschnitt_output_dir}/lowrecall/{auschnitt_name}_lowrecall.gpkg", driver="GPKG")
+                        if not overpredicted_gdf.empty:
+                            overpredicted_gdf.to_file(f"{auschnitt_output_dir}/overprediction/{auschnitt_name}_overprediction.gpkg", driver="GPKG")
+
                         print(f"Successfully processed {filename}")
 
                     except Exception as e:
@@ -286,6 +307,10 @@ class ParcelEvaluator:
         if not all_overprediction_gdf.empty:
             all_overprediction_gdf.set_geometry('geometry', inplace=True)
             all_overprediction_gdf.to_file(f"{self.output_dir}/overprediction.gpkg", driver="GPKG")
+        if not all_original_gdf.empty:
+            all_original_gdf.set_geometry('geometry', inplace=True)
+            all_original_gdf.to_file(f"{self.output_dir}/all_original_parcels.gpkg", driver="GPKG")
+            print(f"Saved all original parcels to {self.output_dir}/all_original_parcels.gpkg")
 
         # Print summary of statistics
         print(f"Total statistics gathered: {len(statistics)}")
@@ -355,6 +380,7 @@ class ParcelEvaluator:
                     writer.writerow(stat)
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
+            
 # Usage example
 evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels",
                             "/workspaces/Satelite/data/experiment/predictions")
