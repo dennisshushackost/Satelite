@@ -9,12 +9,12 @@ import geopandas as gpd
 from rasterio import features
 from shapely.geometry import shape, Polygon, MultiPolygon
 import matplotlib.pyplot as plt
-from load import LoadandAugment
-import model
-import modelup
+from helpers.load import LoadandAugment
+import helpers.model
+import helpers.modelup
 import pandas as pd
 
-class ModelEvaluator:
+class ExtractPolygons:
     def __init__(self, upscale, experiment_name, model_name, dataset_path, json_name, satellite_images_path):
         self.upscale = upscale
         self.json_name = json_name
@@ -22,8 +22,8 @@ class ModelEvaluator:
         self.model_name = model_name
         self.dataset_path = Path(dataset_path)
         self.base_path = self.dataset_path.parent
-        self.experiment_path = self.base_path / 'experiment'
-        self.weights_path = self.experiment_path / f"{self.experiment_name}"
+        self.experiment_path = self.base_path / 'experiments' / self.experiment_name
+        self.weights_path = self.experiment_path / f"{self.experiment_name}.h5"
         self.output_dir = self.experiment_path / 'predictions'
         self.output_dir.mkdir(exist_ok=True)
         self.satellite_images_path = Path(satellite_images_path)
@@ -48,11 +48,11 @@ class ModelEvaluator:
 
     def load_model(self):
         if self.model_name == 'unet':
-            loaded_model = modelup.unet(self.input_shape) if self.upscale else model.unet(self.input_shape)
+            loaded_model = helpers.modelup.unet(self.input_shape) if self.upscale else helpers.model.unet(self.input_shape)
         elif self.model_name == 'attunet':
-            loaded_model = modelup.attunet(self.input_shape) if self.upscale else model.attunet(self.input_shape)
+            loaded_model = helpers.modelup.attunet(self.input_shape) if self.upscale else helpers.model.attunet(self.input_shape)
         elif self.model_name == 'resunet':
-            loaded_model = modelup.resunet(self.input_shape) if self.upscale else model.resunet(self.input_shape)
+            loaded_model = helpers.modelup.resunet(self.input_shape) if self.upscale else helpers.model.resunet(self.input_shape)
         else:
             raise ValueError(f"Model {self.model_name} not implemented")
         
@@ -201,12 +201,3 @@ class ModelEvaluator:
         self.create_final_geodataframe()
         self.create_satellite_reference()
 
-if __name__ == "__main__":
-    upscale = False
-    json_name = 'test_file_mapping.json'
-    experiment_name = 'resunet_experiment_up.h5'
-    model_name = 'attunet'
-    dataset_path = '/workspaces/Satelite/data/dataset_upscaled_False'
-    satellite_images_path = '/workspaces/Satelite/data/satellite'
-    evaluator = ModelEvaluator(upscale, experiment_name, model_name, dataset_path, json_name, satellite_images_path)
-    evaluator.run()

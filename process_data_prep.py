@@ -72,26 +72,21 @@ def create_mask(canton: str, scaled=False):
             except Exception as e:
                 logging.error(f"Error creating mask for canton {canton}: {e}")
         
-def create_tensorflow_dataset(canton: str):
-    try:
-        path_gpkg = f"{base_path}/{canton}.gpkg"
-        logging.info(f"Processing canton {canton}: Creating TensorFlow dataset")
-        CreateTensorflowDataset(data_path=path_gpkg, train=train, test=test, val=val)
-        logging.info(f"Done processing canton {canton}: TensorFlow dataset created")
-    except Exception as e:
-        logging.error(f"Error creating TensorFlow dataset for canton {canton}: {e}")
+def create_tensorflow_datasets():
+    path_gpkg = f"{base_path}/{canton}.gpkg"
+    CreateTensorflowDataset(data_path=path_gpkg, upscaled=False, train=train, test=test, val=val)
+    CreateTensorflowDataset(data_path=path_gpkg, upscaled=True, train=train, test=test, val=val)
+    
 
 def process_switzerland(canton: str):
     create_grid(canton)
     create_satellite(canton)  # This will block until all satellite tasks are finished
-    # Add remove unwanted parcels:
-    
-    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
-    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
-    #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
-    #create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
-    #time.sleep(10)
-    # create_tensorflow_dataset(canton)
+    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
+    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
+    create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
+    create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
+    time.sleep(10)
+    create_tensorflow_datasets()
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
