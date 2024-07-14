@@ -19,6 +19,12 @@ extractor = ExtractPolygons(upscale, experiment_name, model_name, dataset_path, 
 extractor.run()
 
 """
+This creates the necessary PNG files from the TIF files
+"""
+processor = SatelliteImageProcessor(satellite_images_path, extractor.output_dir)
+processor.process_images()
+
+"""
 This will do the evaluation of the predicted polygons:
 """
 evaluator = ParcelEvaluator(parcel_path, extractor.output_dir)

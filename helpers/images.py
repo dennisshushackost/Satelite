@@ -8,8 +8,8 @@ from PIL import Image
 class SatelliteImageProcessor:
     def __init__(self, input_folder, output_folder):
         self.input_folder = input_folder
-        self.output_folder = output_folder
-        self.csv_file = os.path.join(output_folder, 'image_data.csv')
+        self.output_folder = output_folder / 'satellite'
+        self.csv_file = os.path.join(self.output_folder, 'image_data.csv')
 
     def process_images(self):
         # Create output folder if it doesn't exist
