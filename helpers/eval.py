@@ -380,8 +380,3 @@ class ParcelEvaluator:
                     writer.writerow(stat)
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
-            
-# Usage example
-evaluator = ParcelEvaluator("/workspaces/Satelite/data/parcels",
-                            "/workspaces/Satelite/data/experiment/predictions")
-evaluator.analyze_parcels()

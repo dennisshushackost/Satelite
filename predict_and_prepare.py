@@ -1,5 +1,6 @@
 from helpers.extract import ExtractPolygons
 from helpers.eval import ParcelEvaluator
+from helpers.images import SatelliteImageProcessor
 
 
 """
