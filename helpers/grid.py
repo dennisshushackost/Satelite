@@ -81,7 +81,7 @@ class CreateGrid:
 
     def simplify_data(self):
         """
-        Simplifies and validates the geometries of the cantonal data.
+        Simplifies and validates the geometries of the cantonal data, keeping only specified attributes.
         """
         simplified_data_path = self.data_path.parent / f"{self.canton_name}_simplified.gpkg"
         
@@ -97,6 +97,10 @@ class CreateGrid:
         self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
         self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
         self.data['area'] = self.data['geometry'].area
+        
+        # Keep only specified attributes
+        attributes_to_keep = ['nutzung', 'kanton', 'class_id', 'area', 'geometry']
+        self.data = self.data[attributes_to_keep]
         
         # Save the simplified data
         self.data.to_file(simplified_data_path, driver="GPKG")
@@ -293,7 +297,7 @@ class CreateGrid:
         grouped['nonessential_percentage'] = (grouped['nonessential_area'] / grouped['intersection_area']) * 100
         
         # Filter cells with less than 10% non-essential use
-        updated_grid = grouped[grouped['nonessential_percentage'] < 20].copy()
+        updated_grid = grouped[grouped['nonessential_percentage'] < 10].copy()
         
         # Reset index to keep the old cell_id as a column
         updated_grid = updated_grid.reset_index()

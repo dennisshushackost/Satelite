@@ -12,19 +12,16 @@ from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
 list_of_cantons = ['CH']
-base_path = "/workspaces/Satelite/data/"
-cell_size = 2500
-threshold = 0.3
+base_path = "/workspaces/Satelite/data/" # Path to the data folder containing the CH.gpkg file and the CH.geojson file
+cell_size = 2500 # Size of the grid cells in meters (2500m = 2.5km)
+threshold = 0.3 # Threshold for the amount of essential cells in a grid cell. If a cell has less than 30% parcels, it will be removed
 target_size = 256  # Has to be divisible by 32 due to UNET architecture
-time_start = datetime(2023, 6, 1)
-time_end = datetime(2023, 7, 31)
-target_resolution = 10
-upsampling_factor = 2
-border_width = 1
-train = 0.8
+time_start = datetime(2023, 6, 1) # Start date for the satellite images
+time_end = datetime(2023, 7, 31) # End date for the satellite images
+target_resolution = 10 # Target resolution for the satellite images
+train = 0.8 # Train, test and validation split
 test = 0.1
 val = 0.1
-upscale = False
 
 
 def create_grid(canton: str):
@@ -71,7 +68,7 @@ def create_mask(canton: str, scaled=False):
             parcel_index = int(re.findall(r'\d+', satellite_image.stem)[0])
             try:
                 process = ProcessMask(path_gpkg, parcel_index, upscaled=scaled)
-                process.create_border_mask(border_width=border_width)
+                process.create_border_mask(border_width=1)
             except Exception as e:
                 logging.error(f"Error creating mask for canton {canton}: {e}")
         
@@ -84,20 +81,22 @@ def create_tensorflow_dataset(canton: str):
     except Exception as e:
         logging.error(f"Error creating TensorFlow dataset for canton {canton}: {e}")
 
-def process_canton(canton: str):
+def process_switzerland(canton: str):
     create_grid(canton)
     create_satellite(canton)  # This will block until all satellite tasks are finished
-    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
-    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
-    create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
-    create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
-    time.sleep(10)
+    # Add remove unwanted parcels:
+    
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
+    #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
+    #create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
+    #time.sleep(10)
     # create_tensorflow_dataset(canton)
 
 if __name__ == "__main__":
     for canton in list_of_cantons:
-        print(f"Processing canton {canton}")
-        process_canton(canton)
+        print(f"Processing {canton}")
+        process_switzerland(canton)
 
 
 
