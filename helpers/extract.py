@@ -15,7 +15,7 @@ import helpers.modelup
 import pandas as pd
 
 class ExtractPolygons:
-    def __init__(self, upscale, experiment_name, model_name, dataset_path, json_name, satellite_images_path):
+    def __init__(self, upscale, experiment_name, model_name, dataset_path, json_name, satellite_images_path, combined=True):
         self.upscale = upscale
         self.json_name = json_name
         self.experiment_name = experiment_name
@@ -36,11 +36,17 @@ class ExtractPolygons:
         else:
             raise FileNotFoundError(f"Metadata file not found at {metadata_path}")
 
-        self.test_data = self.load_test_data()
-        
-        for images, _ in self.test_data.dataset.take(1):
-            self.input_shape = images.shape[1:]
-            break
+
+        if combined:
+            self.test_data = self.load_combined_data()
+            for images, _ in self.test_data.dataset.take(1):
+                self.input_shape = images.shape[1:]
+                break
+        else:
+            self.test_data = self.load_test_data()
+            for images, _ in self.test_data.dataset.take(1):
+                self.input_shape = images.shape[1:]
+                break
         print(f"Input shape determined from test dataset: {self.input_shape}")
         self.model = self.load_model()
         self.all_polygons = []
@@ -63,6 +69,10 @@ class ExtractPolygons:
     def load_test_data(self):
         test_path = str(self.dataset_path / "test")
         return LoadandAugment(dataset_path=test_path, data_type="test", batch=5, augmentation=False)
+    
+    def load_combined_data(self):
+        combined_path = str(self.dataset_path / "combined")
+        return LoadandAugment(dataset_path=combined_path, data_type="combined", batch=5, augmentation=False)
 
     def evaluate(self):
         evaluation = self.model.evaluate(self.test_data.dataset)
