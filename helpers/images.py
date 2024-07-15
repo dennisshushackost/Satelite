@@ -18,14 +18,19 @@ class SatelliteImageProcessor:
         # Prepare CSV file
         with open(self.csv_file, 'w', newline='') as csvfile:
             csvwriter = csv.writer(csvfile)
-            csvwriter.writerow(['filename', 'min_lat', 'min_lon', 'max_lat', 'max_lon'])
+            csvwriter.writerow(['file_name', 'min_lat', 'min_lon', 'max_lat', 'max_lon', 'canton', 'path_to_image'])
 
             # Process each .tif file in the input folder
             for filename in os.listdir(self.input_folder):
                 if filename.endswith('.tif'):
-                    self.process_single_image(filename, csvwriter)
+                    # Full path to the .tif file
+                    full_path = os.path.join(self.input_folder, filename)
+                    # Canton name = first two characters of the filename
+                    canton = filename[:2]
+                    self.process_single_image(filename, csvwriter, canton, full_path)
+    
 
-    def process_single_image(self, filename, csvwriter):
+    def process_single_image(self, filename, csvwriter, canton, full_path):
         tif_path = os.path.join(self.input_folder, filename)
         png_filename = filename.replace('.tif', '.png')
         png_path = os.path.join(self.output_folder, png_filename)
@@ -58,17 +63,10 @@ class SatelliteImageProcessor:
                 bounds_4326[1],  # min_lat
                 bounds_4326[0],  # min_lon
                 bounds_4326[3],  # max_lat
-                bounds_4326[2]   # max_lon
+                bounds_4326[2],   # max_lon
+                canton,
+                full_path
             ])
 
     def get_csv_path(self):
         return self.csv_file
-
-# Example usage:
-if __name__ == "__main__":
-    input_folder = '/path/to/input/folder'
-    output_folder = '/path/to/output/folder'
-
-    processor = SatelliteImageProcessor(input_folder, output_folder)
-    processor.process_images()
-    print(f"Processing complete. CSV file saved at: {processor.get_csv_path()}")
