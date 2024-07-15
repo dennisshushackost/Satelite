@@ -23,8 +23,8 @@ class SatelliteImageProcessor:
             # Process each .tif file in the input folder
             for filename in os.listdir(self.input_folder):
                 if filename.endswith('.tif'):
-                    # Full path to the .tif file
-                    full_path = os.path.join(self.input_folder, filename)
+                    # Full path to the output PNG file
+                    full_path = os.path.join(self.output_folder, filename.replace('.tif', '.png'))
                     # Canton name = first two characters of the filename
                     canton = filename[:2]
                     self.process_single_image(filename, csvwriter, canton, full_path)
