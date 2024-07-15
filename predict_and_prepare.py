@@ -1,5 +1,5 @@
 from helpers.extract import ExtractPolygons
-from helpers.eval import ParcelEvaluator
+from helpers.eval2 import ParcelEvaluator
 from helpers.images import SatelliteImageProcessor
 
 
@@ -15,18 +15,19 @@ satellite_images_path = '/workspaces/Satelite/data/satellite'
 parcel_path = "/workspaces/Satelite/data/parcels"
 
 
-extractor = ExtractPolygons(upscale, experiment_name, model_name, dataset_path, json_name, satellite_images_path)
-extractor.run()
+#extractor = ExtractPolygons(upscale, experiment_name, model_name, dataset_path, json_name, satellite_images_path)
+#extractor.run()
 
 """
 This creates the necessary PNG files from the TIF files
 """
-processor = SatelliteImageProcessor(satellite_images_path, extractor.output_dir)
-processor.process_images()
+#processor = SatelliteImageProcessor(satellite_images_path, extractor.output_dir)
+#processor.process_images()
 
 """
 This will do the evaluation of the predicted polygons:
 """
-evaluator = ParcelEvaluator(parcel_path, extractor.output_dir)
+# evaluator = ParcelEvaluator(parcel_path, extractor.output_dir)
+evaluator = ParcelEvaluator(parcel_path, "/workspaces/Satelite/data/experiments/resunet_experiment_augmentation_False/predictions")
 evaluator.analyze_parcels()
 
