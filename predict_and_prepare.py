@@ -9,7 +9,7 @@ This will extract the polygons from the predicted images and save them as a geop
 upscale = False
 experiment_name = "resunet_experiment_augmentation_False"
 model_name = "resunet"
-json_name = 'test_file_mapping.json' # Path to the json file 
+json_name = 'combined_file_mapping.json' # Path to the json file 
 dataset_path = '/workspaces/Satelite/data/dataset_upscaled_False'
 satellite_images_path = '/workspaces/Satelite/data/satellite'
 parcel_path = "/workspaces/Satelite/data/parcels"
