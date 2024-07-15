@@ -181,8 +181,8 @@ class ParcelEvaluator:
                             self.predicted_gdf = self.predicted_gdf.to_crs(self.original_gdf.crs)
 
                         # Add all original parcels to the combined GeoDataFrame
-                        self.original_gdf['Canton'] = canton_name
-                        self.original_gdf['Auschnitt'] = Path(predicted_file).stem
+                        self.original_gdf['canton'] = canton_name
+                        self.original_gdf['auschnitt'] = Path(predicted_file).stem
                         all_original_gdf = pd.concat([all_original_gdf, self.original_gdf], ignore_index=True)
 
                         # Create analysis GeoDataFrame, explode MultiPolygons, and filter small parcels
@@ -190,14 +190,14 @@ class ParcelEvaluator:
                         analysis_gdf = analysis_gdf[analysis_gdf.geometry.area > 5000]
                         
                         # Add canton name and Auschnitt name to the analysis GeoDataFrame
-                        analysis_gdf['Canton'] = canton_name
-                        analysis_gdf['Auschnitt'] = Path(predicted_file).stem
+                        analysis_gdf['canton'] = canton_name
+                        analysis_gdf['auschnitt'] = Path(predicted_file).stem
 
                         # Identify overpredicted areas
                         overpredicted_gdf = self.identify_overpredictions()
 
                         # Add Auschnitt name to the overpredicted GeoDataFrame
-                        overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem
+                        overpredicted_gdf['auschnitt'] = Path(predicted_file).stem
 
                         # Calculate True Positive, False Negative, and Adjusted IoU for each parcel
                         true_positives = []
@@ -215,46 +215,46 @@ class ParcelEvaluator:
                             adjusted_ious.append(adjusted_iou)
 
                         # Add calculated metrics to analysis GeoDataFrame
-                        analysis_gdf['True Positive (m²)'] = true_positives
-                        analysis_gdf['False Negative (m²)'] = false_negatives
-                        analysis_gdf['Recall'] = adjusted_ious
+                        analysis_gdf['true_positive'] = true_positives
+                        analysis_gdf['false_negative'] = false_negatives
+                        analysis_gdf['recall'] = adjusted_ious
 
                         # Add Low IoU flag
-                        analysis_gdf['Low Recall'] = analysis_gdf['Recall'] <= 0.7
+                        analysis_gdf['low_recall'] = analysis_gdf['recall'] <= 0.7
 
                         # Create low_iou_gdf
-                        low_iou_gdf = analysis_gdf[analysis_gdf['Low Recall']]
+                        low_iou_gdf = analysis_gdf[analysis_gdf['low_recall']]
 
                         # Add overprediction flag to analysis GeoDataFrame
                         if not overpredicted_gdf.empty:
-                            analysis_gdf['Overpredicted'] = analysis_gdf.geometry.intersects(overpredicted_gdf.unary_union)
+                            analysis_gdf['overpredicted'] = analysis_gdf.geometry.intersects(overpredicted_gdf.unary_union)
                         else:
-                            analysis_gdf['Overpredicted'] = False
+                            analysis_gdf['overpredicted'] = False
 
                         # Add overpredicted areas to analysis GeoDataFrame
                         if not overpredicted_gdf.empty:
                             overpredicted_gdf['Recall'] = None
-                            overpredicted_gdf['Overpredicted'] = True
-                            overpredicted_gdf['Low Recall'] = False
-                            overpredicted_gdf['True Positive (m²)'] = None
-                            overpredicted_gdf['False Negative (m²)'] = None
-                            overpredicted_gdf['Canton'] = canton_name
-                            overpredicted_gdf['Auschnitt'] = Path(predicted_file).stem
+                            overpredicted_gdf['overpredicted'] = True
+                            overpredicted_gdf['low_recall'] = False
+                            overpredicted_gdf['true_positive'] = None
+                            overpredicted_gdf['false_negative'] = None
+                            overpredicted_gdf['canton'] = canton_name
+                            overpredicted_gdf['auschnitt'] = Path(predicted_file).stem
                             analysis_gdf = pd.concat([analysis_gdf, overpredicted_gdf], ignore_index=True)
 
                         # Ensure a parcel is only overpredicted if it has NULL as Adjusted IoU
-                        analysis_gdf.loc[analysis_gdf['Recall'].notnull(), 'Overpredicted'] = False
+                        analysis_gdf.loc[analysis_gdf['recall'].notnull(), 'overpredicted'] = False
 
                         # Calculate statistics for this file
                         file_stats = {
-                            'Canton': canton_name,
-                            'Auschnitt': Path(predicted_file).stem,
-                            'Area (m²)': self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
-                            'Overpredicted (m²)': overpredicted_gdf['geometry'].area.sum() if not overpredicted_gdf.empty else 0,
-                            'Low Recall  (m²)': low_iou_gdf['geometry'].area.sum(),
-                            'Total Error': ((overpredicted_gdf['geometry'].area.sum() if not overpredicted_gdf.empty else 0) + low_iou_gdf['geometry'].area.sum()) / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
-                            'Overprediction Error': overpredicted_gdf['geometry'].area.sum() / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
-                            'Recall Error': low_iou_gdf['geometry'].area.sum() / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum()
+                            'canton': canton_name,
+                            'auschnitt': Path(predicted_file).stem,
+                            'area': self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
+                            'overpredicted': overpredicted_gdf['geometry'].area.sum() if not overpredicted_gdf.empty else 0,
+                            'low_recall': low_iou_gdf['geometry'].area.sum(),
+                            'total_error': ((overpredicted_gdf['geometry'].area.sum() if not overpredicted_gdf.empty else 0) + low_iou_gdf['geometry'].area.sum()) / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
+                            'overprediction_error': overpredicted_gdf['geometry'].area.sum() / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum(),
+                            'recall_error': low_iou_gdf['geometry'].area.sum() / self.original_gdf[self.original_gdf.geometry.area > 5000].geometry.area.sum()
                         }
                         statistics.append(file_stats)
 
@@ -332,48 +332,48 @@ class ParcelEvaluator:
 
             # Calculate canton-wide statistics
             overall_statistics = []
-            statistics.sort(key=lambda x: x['Canton'])
-            for canton, canton_stats in itertools.groupby(statistics, key=lambda x: x['Canton']):
+            statistics.sort(key=lambda x: x['canton'])
+            for canton, canton_stats in itertools.groupby(statistics, key=lambda x: x['canton']):
                 canton_stats = list(canton_stats)
-                original_total_area = sum(stat['Area (m²)'] for stat in canton_stats)
-                overpredicted_area = sum(stat['Overpredicted (m²)'] for stat in canton_stats)
-                low_iou_area = sum(stat['Low Recall  (m²)'] for stat in canton_stats)
-                avg_total_error = sum(stat['Total Error'] for stat in canton_stats) / len(canton_stats)
-                avg_overprediction_error = sum(stat['Overprediction Error'] for stat in canton_stats) / len(canton_stats)
-                avg_iou_error = sum(stat['Recall Error'] for stat in canton_stats) / len(canton_stats)
+                original_total_area = sum(stat['area'] for stat in canton_stats)
+                overpredicted_area = sum(stat['overpredicted'] for stat in canton_stats)
+                low_iou_area = sum(stat['low_recall'] for stat in canton_stats)
+                avg_total_error = sum(stat['total_error'] for stat in canton_stats) / len(canton_stats)
+                avg_overprediction_error = sum(stat['overprediction_error'] for stat in canton_stats) / len(canton_stats)
+                avg_iou_error = sum(stat['recall_error'] for stat in canton_stats) / len(canton_stats)
 
                 canton_statistics = {
-                    'Canton': canton,
-                    'Area (m²)': round(original_total_area, 2),
-                    'Overpredicted (m²)': round(overpredicted_area, 2),
-                    'Low Recall  (m²)': round(low_iou_area, 2),
-                    'Average Total Error': round(avg_total_error, 2),
-                    'Average Overprediction Error': round(avg_overprediction_error, 2),
-                    'Average Recall Error': round(avg_iou_error, 2)
+                    'canton': canton,
+                    'area': round(original_total_area, 2),
+                    'overpredicted': round(overpredicted_area, 2),
+                    'low_recall': round(low_iou_area, 2),
+                    'average_total_error': round(avg_total_error, 2),
+                    'average_overprediction_error': round(avg_overprediction_error, 2),
+                    'average_recall_error': round(avg_iou_error, 2)
                 }
                 overall_statistics.append(canton_statistics)
 
             # Calculate overall statistics for all cantons
-            overall_original_area = sum(stat['Area (m²)'] for stat in statistics)
-            overall_overpredicted_area = sum(stat['Overpredicted (m²)'] for stat in statistics)
-            overall_low_iou_area = sum(stat['Low Recall  (m²)'] for stat in statistics)
-            overall_total_error = sum(stat['Total Error'] for stat in statistics) / len(statistics)
-            overall_overprediction_error = sum(stat['Overprediction Error'] for stat in statistics) / len(statistics)
-            overall_iou_error = sum(stat['Recall Error'] for stat in statistics) / len(statistics)
+            overall_original_area = sum(stat['area'] for stat in statistics)
+            overall_overpredicted_area = sum(stat['overpredicted'] for stat in statistics)
+            overall_low_iou_area = sum(stat['low_recall'] for stat in statistics)
+            overall_total_error = sum(stat['total_error'] for stat in statistics) / len(statistics)
+            overall_overprediction_error = sum(stat['overprediction_error'] for stat in statistics) / len(statistics)
+            overall_iou_error = sum(stat['recall_error'] for stat in statistics) / len(statistics)
 
             overall_statistics.append({
-                'Canton': 'CH',
-                'Area (m²)': round(overall_original_area, 2),
-                'Overpredicted (m²)': round(overall_overpredicted_area, 2),
-                'Low Recall  (m²)': round(overall_low_iou_area, 2),
-                'Average Total Error': round(overall_total_error, 2),
-                'Average Overprediction Error': round(overall_overprediction_error, 2),
-                'Average Recall Error': round(overall_iou_error, 2)
+                'canton': 'CH',
+                'area': round(overall_original_area, 2),
+                'overpredicted': round(overall_overpredicted_area, 2),
+                'low_recall': round(overall_low_iou_area, 2),
+                'average_total_error': round(overall_total_error, 2),
+                'average_overprediction_error': round(overall_overprediction_error, 2),
+                'average_recall_error': round(overall_iou_error, 2)
             })
 
             # Save overall statistics to a single CSV file
             with open(f"{self.output_dir}/overall_statistics.csv", 'w', newline='') as csvfile:
-                fieldnames = ['Canton', 'Area (m²)', 'Overpredicted (m²)', 'Low Recall  (m²)', 'Average Total Error', 'Average Overprediction Error', 'Average Recall Error']
+                fieldnames = ['canton', 'area', 'overpredicted', 'low_recall', 'average_total_error', 'average_overprediction_error', 'average_recall_error']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
                 for stat in overall_statistics:
