@@ -6,6 +6,7 @@ import geopandas as gpd
 from tqdm import tqdm
 import logging
 import time
+from helpers.simplify import Simplify
 from helpers.grid import CreateGrid
 from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
@@ -23,6 +24,10 @@ train = 0.8 # Train, test and validation split
 test = 0.1
 val = 0.1
 
+def simplify_data(canton: str):
+    path_gpkg = f"{base_path}/{canton}.gpkg"
+    Simplify(data_path=path_gpkg)
+    
 
 def create_grid(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -79,13 +84,14 @@ def create_tensorflow_datasets():
     
 
 def process_switzerland(canton: str):
+    simplify_data(canton)
     #create_grid(canton)
     #create_satellite(canton)  # This will block until all satellite tasks are finished
-    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
-    create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
-    create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
-    create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
-    time.sleep(10)
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
+    #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
+    #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
+    #create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
+    #time.sleep(10)
     #create_tensorflow_datasets()
 
 if __name__ == "__main__":
