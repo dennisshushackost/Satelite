@@ -8,6 +8,7 @@ import logging
 import time
 from helpers.simplify import Simplify
 from helpers.grid import CreateGrid
+#from helpers.gridold import CreateGrid
 from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
@@ -28,7 +29,6 @@ def simplify_data(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     Simplify(data_path=path_gpkg)
     
-
 def create_grid(canton: str):
     path_gpkg = f"{base_path}/{canton}.gpkg"
     boundary_path = f"{base_path}/{canton}.geojson"
@@ -84,8 +84,8 @@ def create_tensorflow_datasets():
     
 
 def process_switzerland(canton: str):
-    simplify_data(canton)
-    #create_grid(canton)
+    #simplify_data(canton)
+    create_grid(canton)
     #create_satellite(canton)  # This will block until all satellite tasks are finished
     #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 

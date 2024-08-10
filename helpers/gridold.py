@@ -12,23 +12,25 @@ warnings.filterwarnings('ignore')
 
 class CreateGrid:
     """
-    This class creates a grid of the swiss data of a given cell_size and removes non-essential grid cells.
+    This class creates a grid of the swiss data of a given cell_size and simplifies the geometries of the cantonal data.
     Following operations are performed:
-    1. Creates a grid of the cantonal data.
-    2. Removes non-essential grid cells.
+    1. Simplifies the geometries of the cantonal data / swiss data.
+        - Explodes MultiPolygons
+        - Simplifies the geometries
+        - Validates the geometries
+    2. Removes non-essential usable agricultural land from the data.
+        - List given in the code.
+    3. Optionally merges adjacent parcels of the same 'nutzung' type.
+    4. Creates a grid of the cantonal data.
+    5. Removes non-essential grid cells.
         - Grid cells that are not fully within the cantonal/swiss border.
         - Grid cells that do not have a coverage ratio of at least 0.1 (can be changed).
     """
 
     def __init__(self, data_path, boundary_path, cell_size=2500, non_essential_cells=0.3):
         self.data_path = Path(data_path)
-        self.canton_name = self.data_path.stem
-        self.simplified_data_path = Path(self.data_path.parent / f"{self.canton_name}_simplified.gpkg")
-        self.data = gpd.read_file(self.simplified_data_path)
         self.boundary_path = Path(boundary_path)
-        self.border = gpd.read_file(self.boundary_path)
-        self.non_essential_cells = non_essential_cells
-        self.cell_size = cell_size
+        self.canton_name = self.data_path.stem
         self.to_remove_nutzungsflächen = [
             "Übrige unproduktive Flächen (z.B. gemulchte Flächen, stark verunkrautete Flächen, Hecken ohne Pufferstreifen)",
             "Hecken-, Feld- und Ufergehölze (mit Krautsaum)",
@@ -50,13 +52,20 @@ class CreateGrid:
             "Flächen ohne landwirtschaftliche Hauptzweckbestimmung (erschlossenes Bauland, Spiel-, Reit-, Camping-, Golf-, Flug- und Militärplätze oder ausgemarchte Bereiche von Eisenbahnen, öffentlichen Strassen und Gewässern)",
             "Landwirtschaftliche Produktion in Gebäuden (z. B. Champignon, Brüsseler)",
         ]
+        self.cell_size = cell_size
         self.create_folders()
+        self.data = gpd.read_file(self.data_path)
+        self.border = gpd.read_file(self.boundary_path)
+        self.non_essential_cells = non_essential_cells
+        
 
         # Ensure all data has the same CRS
         if self.data.crs != self.border.crs:
             self.border = self.border.to_crs(self.data.crs)
 
         # Simplify data
+        self.data = self.remove_nutzungsflächen()
+        self.data = self.simplify_data()
         self.crs = self.data.crs
         self.xmin, self.ymin, self.xmax, self.ymax = self.data.total_bounds
         self.create_grid()
@@ -69,6 +78,34 @@ class CreateGrid:
         # Create grid folder
         self.grid_path = self.base_path / "grid"
         self.grid_path.mkdir(exist_ok=True)
+
+    def simplify_data(self):
+        """
+        Simplifies and validates the geometries of the cantonal data, keeping only specified attributes.
+        """
+        simplified_data_path = self.data_path.parent / f"{self.canton_name}_simplified.gpkg"
+        
+        if simplified_data_path.exists():
+            print(f"Loading existing simplified data from {simplified_data_path}")
+            return gpd.read_file(simplified_data_path)
+        
+        print("Simplified data not found. Creating new simplified data...")
+        self.data = self.data.copy()
+        # Explode MultiPolygons
+        if any(self.data.geometry.type == 'MultiPolygon'):
+            self.data = self.data.explode(index_parts=False).reset_index(drop=True)
+        self.data['geometry'] = self.data['geometry'].simplify(tolerance=5, preserve_topology=True)
+        self.data['geometry'] = self.data['geometry'].apply(lambda geom: geom if geom.is_valid else geom.buffer(0))
+        self.data['area'] = self.data['geometry'].area
+        
+        # Keep only specified attributes
+        attributes_to_keep = ['nutzung', 'kanton', 'class_id', 'area', 'geometry']
+        self.data = self.data[attributes_to_keep]
+        
+        # Save the simplified data
+        self.data.to_file(simplified_data_path, driver="GPKG")
+        print(f"Saved simplified data to {simplified_data_path}")
+        return self.data
 
     def create_grid(self):
         """
@@ -91,12 +128,83 @@ class CreateGrid:
         self.remove_non_essential_grid_cells(grid)
         self.remove_parcels_with_high_nonessential_use()
 
+    def remove_nutzungsflächen(self):
+        """
+        This removes certain land use types from the data.
+        """ 
+        
+        to_remove = [
+            "Buntbrache",
+            "Rotationsbrache",
+            "Saum auf Ackerflächen",
+            "Nützlingsstreifen auf offener Ackerfläche",
+            "Übrige offene Ackerfläche, nicht beitragsberechtigt (regionsspezifische Biodiversitätsförderfläche)",
+            "Christbäume",
+            "Hecken-, Feld- und Ufergehölze (mit Krautsaum)",
+            "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen)",
+            "Wald",
+            "Übrige unproduktive Flächen (z.B. gemulchte Flächen, stark verunkrautete Flächen, Hecken ohne Pufferstreifen)",
+            "Wassergräben, Tümpel, Teiche",
+            "Ruderalflächen, Steinhaufen und -wälle",
+            "Unbefestigte, natürliche Wege",
+            "Regionsspezifische Biodiversitätsförderflächen",
+            "Hausgärten",
+            "Sömmerungsweiden",
+            "Übrige Flächen ausserhalb der LN und SF",
+            "Flächen ohne landwirtschaftliche Hauptzweckbestimmung (erschlossenes Bauland, Spiel-, Reit-, Camping-, Golf-, Flug- und Militärplätze oder ausgemarchte Bereiche von Eisenbahnen, öffentlichen Strassen und Gewässern)",
+            "Offene Ackerfläche, beitragsberechtigt (regionsspezifische Biodiversitätsförderfläche)",
+            "Waldweiden (ohne bewaldete Fläche)",
+            "Heuwiesen im Sömmerungsgebiet, Übrige Wiesen",
+            "Einheimische standortgerechte Einzelbäume und Alleen (Punkte oder Flächen)",
+            "Andere Bäume",
+            "Andere Bäume (regionsspezifische Biodiversitätsförderfläche)",
+            "Andere Elemente (regionsspezifische Biodiversitätsförderfläche)", "Quinoa",
+            "Heuwiesen im Sömmerungsgebiet, Typ extensiv genutzte Wiese",
+            "Heuwiesen im Sömmerungsgebiet, Typ wenig intensiv genutzte Wiese",
+            "Hecken-, Feld- und Ufergehölze (mit Pufferstreifen) (regionsspezifische Biodiversitätsförderfläche)",
+            "Trockenmauern",
+            "Regionsspezifische Biodiversitätsförderflächen (Weiden)",
+            "Baumschule von Forstpflanzen ausserhalb der Forstzone",
+            "Ackerschonstreifen",
+            "Landwirtschaftliche Produktion in Gebäuden (z. B. Champignon, Brüsseler)",
+            "Heuwiesen mit Zufütterung während der Sömmerung",
+            "Streueflächen im Sömmerungsgebiet",
+            "Regionsspezifische Biodiversitätsförderfläche (Grünflächen ohne Weiden)"
+
+        ]
+        
+        self.data = self.data[~self.data['nutzung'].isin(self.to_remove_nutzungsflächen)]
+        # Stores the class ID of the Nutzung for later use:
+        nutzung_to_class = {nutzung: idx for idx, nutzung in enumerate(self.data['nutzung'].unique(), start=1)}
+        self.data['class_id'] = self.data['nutzung'].map(nutzung_to_class)
+        return self.data
 
     def remove_non_essential_grid_cells(self, grid):
         """
+        I apologize for the confusion. You're right to ask for clarification. Let me break this down more precisely:
+        The grid cells are  2.5km x 2.5km, as defined by the cell_size=2500 parameter in the CreateGrid initialization.
+        The function operates on these 2.5km x 2.5km grid cells. Here's how it works for each grid cell:
+        a. First, it selects only the grid cells that are at least 5km away from the border.
+        b. For each of these selected grid cells, it finds all the parcels that intersect with the cell.
+        c. For each cell, it then calculates:
+
+        The total area of all parcels intersecting the cell
+        The number of parcels intersecting the cell
+        The number of small parcels (< 5000m2) intersecting the cell
+
+        d. It then computes for each 2.5km x 2.5km cell:
+
+        The coverage ratio: total area of parcels / area of the cell
+        The percentage of small parcels: number of small parcels / total number of parcels
+
+        e. Finally, it keeps only the 2.5km x 2.5km cells that meet both criteria:
+
+        The coverage ratio is above the threshold (self.non_essential_cells, which is 0.1 or 10% in your original code)
+        50% or fewer of the parcels intersecting the cell are small (< 5000m2)
+        This removes the non-essential grid cells from the data. 
         It removes:
         1. Cells within 5 km of the border
-        2. Cells with low coverage ratio (<30%)
+        2. Cells with low coverage ratio
         3. Cells where the majority (>50%) of parcels are smaller than 5000m2
         """
         print('Removing non-essential grid cells...')
@@ -156,7 +264,7 @@ class CreateGrid:
             
     def remove_parcels_with_high_nonessential_use(self):
         """
-        Removes grid cells with high non-essential land use.
+        Removes grid cells with high non-essential land use and renumbers the remaining cells.
         """
         print('Removing parcels with high non-essential land use...')
         
