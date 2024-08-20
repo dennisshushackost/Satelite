@@ -29,6 +29,9 @@ class Simplify:
             "Übrige Flächen ausserhalb der LN und SF", # Z.B. Waldränder
             "Flächen ohne landwirtschaftliche Hauptzweckbestimmung (erschlossenes Bauland, Spiel-, Reit-, Camping-, Golf-, Flug- und Militärplätze oder ausgemarchte Bereiche von Eisenbahnen, öffentlichen Strassen und Gewässern)",
             "Landwirtschaftliche Produktion in Gebäuden (z. B. Champignon, Brüsseler)",
+            "Einheimische standortgerechte Einzelbäume und Alleen (Punkte oder Flächen)",
+            "Andere Bäume",
+            "Baumschule von Forstpflanzen ausserhalb der Forstzone",            
         ]
         self.data = gpd.read_file(self.data_path)
         self.data = self.remove_nutzungsflächen()

@@ -84,9 +84,9 @@ def create_tensorflow_datasets():
     
 
 def process_switzerland(canton: str):
-    #simplify_data(canton)
+    simplify_data(canton)
     create_grid(canton)
-    #create_satellite(canton)  # This will block until all satellite tasks are finished
+    create_satellite(canton)  # This will block until all satellite tasks are finished
     #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
     #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
