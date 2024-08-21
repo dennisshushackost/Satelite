@@ -1,6 +1,4 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 import tensorflow as tf
 from pathlib import Path
 import numpy as np
@@ -8,15 +6,11 @@ import rasterio
 import random
 import json
 
-class CreateTensorflowDataset:
-    """
-    This class prepares the tensorflow dataset for training:
-    - Loads and processes the images and masks in order to be suiting for 
-    a tensorflow dataset. The sizes of the different images are given by 
-    (512, 512, 4) for the images if they are upscaled and (256, 256, 4) if they are not.
-    The masks are always (512, 512, 1).
-    """
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
+tf.get_logger().setLevel('ERROR')  # Only show errors, not warnings
+
+class CreateTensorflowDataset:
     def __init__(self, data_path, upscaled, train=0.8, test=0.1, val=0.1):
         self.base_path = Path(data_path).parent
         self.upscaled = upscaled
@@ -25,14 +19,10 @@ class CreateTensorflowDataset:
         self.train = train
         self.test = test
         self.val = val
-        if upscaled:
-            self.image_shape = [512, 512, 4]
-            self.mask_shape = [512, 512, 1]
-        else:
-            self.image_shape = [256, 256, 4]
-            self.mask_shape = [512, 512, 1]
+        self.image_shape = [512, 512, 4] if upscaled else [256, 256, 4]
+        self.mask_shape = [512, 512, 1]
+        self.split_info_file = self.base_path / 'dataset_split_info.json'
         self.prepare_dataset()
-
 
     def process_image(self, image_path):
         """
@@ -68,49 +58,16 @@ class CreateTensorflowDataset:
         tensor.set_shape(self.mask_shape)
         return tensor
 
-    def process_mask_special(self, mask_path):
-        """
-        Tensorflow function to process the masks for tensorflow datasets
-        :param mask_path: A string of the mask path
-        :return: tensorflow compatible uint8 image
-        """
-
-        def _load_mask(path):
-            with rasterio.open(path.decode("utf-8")) as src:
-                mask = src.read()  # Read all channels
-                mask = np.transpose(mask, (1, 2, 0))  # Reshape to (height, width, channels)
-                return mask.astype(np.uint8)
-
-        tensor = tf.numpy_function(_load_mask, [mask_path], tf.uint8)
-        tensor.set_shape(self.mask_shape)
-        return tensor
-
     def save_file_mapping(self, indices, images, masks, filename):
         mapping = [{'index': index, 'image': image, 'mask': mask} for index, image, mask in zip(indices, images, masks)]
-        with open(self.base_path / filename, 'w') as f:
+        with open(filename, 'w') as f:
             json.dump(mapping, f)
 
-    def prepare_dataset(self):
-        print("Preparing the dataset...")
-        images = []
-        masks = []
-        if self.upscaled:
-            image_paths = sorted(self.satellite_dir.glob(f'*_CH_upscaled_parcel_*.tif'))
-            images += image_paths
-            mask_paths = sorted(self.mask_dir.glob(f'*_CH_upscaled_parcel_*.tif'))
-            masks += mask_paths
-        else:
-            image_paths = sorted(self.satellite_dir.glob(f'*_CH_parcel_*.tif'))
-            image_paths = [str(path) for path in image_paths if 'upscaled' not in str(path)]
-            images += image_paths
-            mask_paths = sorted(self.mask_dir.glob(f'*_CH_parcel_*.tif'))
-            mask_paths = [str(path) for path in mask_paths if 'upscaled' not in str(path)]
-            masks += mask_paths
-        print(f"Found {len(images)} images and {len(masks)} masks.")
+    def create_dataset_split(self):
+        images = sorted(self.satellite_dir.glob('*_CH_parcel_*.tif'))
+        images = [str(path) for path in images if 'upscaled' not in str(path)]
+        masks = [str(path).replace('satellite', 'mask') for path in images]
 
-        # Shuffle the dataset:
-        images = [str(path) for path in images]
-        masks = [str(path) for path in masks]
         combined = list(zip(images, masks))
         random.shuffle(combined)
         images, masks = zip(*combined)
@@ -119,56 +76,106 @@ class CreateTensorflowDataset:
         train_size = int(self.train * dataset_size)
         val_size = int(self.val * dataset_size)
 
-        # Split the dataset into training, validation, and testing
-        train_images, train_masks = images[:train_size], masks[:train_size]
-        val_images, val_masks = images[train_size:train_size + val_size], masks[train_size:train_size + val_size]
-        test_images, test_masks = images[train_size + val_size:], masks[train_size + val_size:]
+        split_info = {
+            'train': images[:train_size],
+            'val': images[train_size:train_size + val_size],
+            'test': images[train_size + val_size:]
+        }
 
-        # Save the three datasets as train, test and val
-        save_path = self.base_path / f'dataset_upscaled_{self.upscaled}'
-        if not save_path.exists():
-            save_path.mkdir()
+        with open(self.split_info_file, 'w') as f:
+            json.dump(split_info, f)
 
-        # Create list of the
-        self.save_file_mapping(list(range(train_size)), train_images, train_masks, save_path / 'train_file_mapping.json')
-        self.save_file_mapping(list(range(val_size)), val_images, val_masks, save_path / 'val_file_mapping.json')
-        self.save_file_mapping(list(range(dataset_size - train_size - val_size)), test_images, test_masks, save_path / 'test_file_mapping.json')
+        return split_info
 
-        train_dataset = tf.data.Dataset.from_tensor_slices((list(train_images), list(train_masks)))
-        val_dataset = tf.data.Dataset.from_tensor_slices((list(val_images), list(val_masks)))
-        test_dataset = tf.data.Dataset.from_tensor_slices((list(test_images), list(test_masks)))
+    def prepare_dataset(self):
+        print("Preparing the dataset...")
+        
+        if not self.split_info_file.exists():
+            split_info = self.create_dataset_split()
+        else:
+            with open(self.split_info_file, 'r') as f:
+                split_info = json.load(f)
 
-        # Process the images and masks
-        train_dataset = train_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
-                                          num_parallel_calls=tf.data.AUTOTUNE)
-        val_dataset = val_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
-                                      num_parallel_calls=tf.data.AUTOTUNE)
-        test_dataset = test_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
-                                        num_parallel_calls=tf.data.AUTOTUNE)
+        datasets = {}
+        for split, image_paths in split_info.items():
+            if self.upscaled:
+                images = [path.replace('_CH_parcel_', '_CH_upscaled_parcel_') for path in image_paths]
+            else:
+                images = image_paths
+            masks = [path.replace('satellite', 'mask') for path in images]
 
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
-        self.test_dataset = test_dataset
+            # Check if images and masks are not empty
+            if not images or not masks:
+                print(f"Warning: No images or masks found for {split} split.")
+                continue
 
-        tf.data.Dataset.save(
-            train_dataset, str(save_path / 'train'), compression=None, shard_func=None, checkpoint_args=None
-        )
-        tf.data.Dataset.save(
-            val_dataset, str(save_path / 'val'), compression=None, shard_func=None, checkpoint_args=None
-        )
-        tf.data.Dataset.save(
-            test_dataset, str(save_path / 'test'), compression=None, shard_func=None, checkpoint_args=None
-        )
+            # Verify that all files exist
+            images = [path for path in images if os.path.exists(path)]
+            masks = [path for path in masks if os.path.exists(path)]
+
+            if not images or not masks:
+                print(f"Warning: No valid image or mask files found for {split} split.")
+                continue
+
+            # Print some debugging information
+            print(f"Number of images for {split}: {len(images)}")
+            print(f"Number of masks for {split}: {len(masks)}")
+            print(f"First image path: {images[0]}")
+            print(f"First mask path: {masks[0]}")
+
+            try:
+                dataset = tf.data.Dataset.from_tensor_slices((images, masks))
+                dataset = dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
+                                    num_parallel_calls=tf.data.AUTOTUNE)
+                datasets[split] = dataset
+
+                save_path = self.base_path / f'dataset_upscaled_{self.upscaled}'
+                if not save_path.exists():
+                    save_path.mkdir()
+                
+                self.save_file_mapping(list(range(len(images))), images, masks, save_path / f'{split}_file_mapping.json')
+                
+                tf.data.Dataset.save(
+                    dataset, str(save_path / split), compression=None, shard_func=None, checkpoint_args=None
+                )
+            except ValueError as e:
+                print(f"Error creating dataset for {split} split: {str(e)}")
+                continue
+
+        if not datasets:
+            raise ValueError("No valid datasets could be created. Please check your input data.")
+
+        self.train_dataset = datasets.get('train')
+        self.val_dataset = datasets.get('val')
+        self.test_dataset = datasets.get('test')
 
         # Create combined dataset
-        combined_images = list(train_images) + list(val_images) + list(test_images)
-        combined_masks = list(train_masks) + list(val_masks) + list(test_masks)
-        combined_dataset = tf.data.Dataset.from_tensor_slices((combined_images, combined_masks))
-        combined_dataset = combined_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
-                                                num_parallel_calls=tf.data.AUTOTUNE)
-        self.save_file_mapping(list(range(dataset_size)), combined_images, combined_masks, save_path / 'combined_file_mapping.json')
-        tf.data.Dataset.save(
-            combined_dataset, str(save_path / 'combined'), compression=None, shard_func=None, checkpoint_args=None
-        )
+        combined_images = []
+        combined_masks = []
+        for split in ['train', 'val', 'test']:
+            if split in split_info:
+                combined_images.extend(split_info[split])
+                combined_masks.extend([path.replace('satellite', 'mask') for path in split_info[split]])
+
+        if self.upscaled:
+            combined_images = [path.replace('_CH_parcel_', '_CH_upscaled_parcel_') for path in combined_images]
+            combined_masks = [path.replace('_CH_parcel_', '_CH_upscaled_parcel_') for path in combined_masks]
+
+        if not combined_images or not combined_masks:
+            print("Warning: No valid combined dataset could be created.")
+            return
+
+        try:
+            combined_dataset = tf.data.Dataset.from_tensor_slices((combined_images, combined_masks))
+            combined_dataset = combined_dataset.map(lambda image, mask: (self.process_image(image), self.process_mask(mask)),
+                                                    num_parallel_calls=tf.data.AUTOTUNE)
+
+            save_path = self.base_path / f'dataset_upscaled_{self.upscaled}'
+            self.save_file_mapping(list(range(len(combined_images))), combined_images, combined_masks, save_path / 'combined_file_mapping.json')
+            tf.data.Dataset.save(
+                combined_dataset, str(save_path / 'combined'), compression=None, shard_func=None, checkpoint_args=None
+            )
+        except ValueError as e:
+            print(f"Error creating combined dataset: {str(e)}")
 
         print("Done preparing the dataset.")

@@ -214,7 +214,7 @@ class ParcelEvaluator:
             for stat in statistics:
                 for key, value in stat.items():
                     if isinstance(value, (int, float)):
-                        stat[key] = round(value, 2)
+                        stat[key] = round(value, 4)
 
             with open(f"{self.output_dir}/statistics.csv", 'w', newline='') as csvfile:
                 fieldnames = list(statistics[0].keys())
@@ -236,12 +236,12 @@ class ParcelEvaluator:
 
                 canton_statistics = {
                     'canton': canton,
-                    'area': round(original_total_area, 2),
-                    'overpredicted': round(overpredicted_area, 2),
-                    'low_recall': round(low_iou_area, 2),
-                    'average_total_error': round(avg_total_error, 2),
-                    'average_overprediction_error': round(avg_overprediction_error, 2),
-                    'average_recall_error': round(avg_iou_error, 2)
+                    'area': round(original_total_area, 4),
+                    'overpredicted': round(overpredicted_area, 4),
+                    'low_recall': round(low_iou_area, 4),
+                    'average_total_error': round(avg_total_error, 4),
+                    'average_overprediction_error': round(avg_overprediction_error, 4),
+                    'average_recall_error': round(avg_iou_error, 4)
                 }
                 overall_statistics.append(canton_statistics)
 
@@ -254,12 +254,12 @@ class ParcelEvaluator:
             
             overall_statistics.append({
                     'canton': 'ch',
-                    'area': round(overall_original_area, 2),
-                    'overpredicted': round(overall_overpredicted_area, 2),
-                    'low_recall': round(overall_low_iou_area, 2),
-                    'average_total_error': round(overall_total_error, 2),
-                    'average_overprediction_error': round(overall_overprediction_error, 2),
-                    'average_recall_error': round(overall_iou_error, 2)
+                    'area': round(overall_original_area, 4),
+                    'overpredicted': round(overall_overpredicted_area, 4),
+                    'low_recall': round(overall_low_iou_area, 4),
+                    'average_total_error': round(overall_total_error, 4),
+                    'average_overprediction_error': round(overall_overprediction_error, 4),
+                    'average_recall_error': round(overall_iou_error, 4)
                 })
 
             with open(f"{self.output_dir}/overall_statistics.csv", 'w', newline='') as csvfile:

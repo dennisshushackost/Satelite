@@ -39,6 +39,8 @@ class ExtractPolygons:
 
         if combined:
             self.test_data = self.load_combined_data()
+            # Get the length of the dataset
+            print(f"Length of the dataset: {len(self.test_data.dataset)}")
             for images, _ in self.test_data.dataset.take(1):
                 self.input_shape = images.shape[1:]
                 break

@@ -10,10 +10,12 @@ import re
 warnings.filterwarnings("ignore")
 
 class ParcelEvaluator:
-    def __init__(self, original_dir, predicted_dir):
+    def __init__(self, original_dir, predicted_dir, upscaled):
         self.original_dir = Path(original_dir)
         self.predicted_dir = Path(predicted_dir)
+        print(self.predicted_dir)
         self.output_dir = self.create_folder()
+        self.upscaled = upscaled
 
     def create_folder(self):
         output_dir = self.predicted_dir.parent / 'evaluation'
@@ -55,11 +57,17 @@ class ParcelEvaluator:
         return overpredicted_gdf
 
     def analyze_parcels(self):
+        self.analyze_nutzung_recall()
         statistics = []
-        predicted_files = glob.glob(str(self.predicted_dir / f'*_CH_parcel_*.gpkg'))
+        if self.upscaled == False:
+            print("Not upscaled")
+            predicted_files = glob.glob(str(self.predicted_dir / f'*_CH_parcel_*.gpkg'))
+            canton_names = set(re.match(r"([A-Z]{2})_CH_parcel_\d+.gpkg", Path(f).name).group(1) for f in predicted_files)
+        else:
+            print("Upscaled")
+            predicted_files = glob.glob(str(self.predicted_dir / f'*_CH_upscaled_parcel_*.gpkg'))
+            canton_names = set(re.match(r"([A-Z]{2})_CH_upscaled_parcel_\d+.gpkg", Path(f).name).group(1) for f in predicted_files)
         print(f"Found {len(predicted_files)} predicted files")
-
-        canton_names = set(re.match(r"([A-Z]{2})_CH_parcel_\d+.gpkg", Path(f).name).group(1) for f in predicted_files)
         print(f"Found {len(canton_names)} cantons: {', '.join(canton_names)}")
         
         all_analysis_gdf = gpd.GeoDataFrame()
@@ -73,7 +81,10 @@ class ParcelEvaluator:
             canton_overprediction_gdf = gpd.GeoDataFrame()
             canton_lowiou_gdf = gpd.GeoDataFrame()
             
-            canton_predicted_files = [f for f in predicted_files if f.__contains__(f"{canton_name}_CH_parcel_")]
+            if self.upscaled == False:
+                canton_predicted_files = [f for f in predicted_files if f.__contains__(f"{canton_name}_CH_parcel_")]
+            else:
+                canton_predicted_files = [f for f in predicted_files if f.__contains__(f"{canton_name}_CH_upscaled_parcel_")]
             print(f"Found {len(canton_predicted_files)} files for canton {canton_name}")
 
             for predicted_file in canton_predicted_files:
@@ -270,6 +281,51 @@ class ParcelEvaluator:
                     writer.writerow(stat)
         else:
             print("No statistics generated. Check if there are matching files in the directories.")
+        self.analyze_nutzung_recall()
+            
+    def analyze_nutzung_recall(self):
+        """
+        Creates an analysis of the recall for different 'Nutzung' types.
+        """
+        print("Analyzing Nutzung recall...")
+        analysis_file = self.output_dir / "analysis.gpkg"
+        
+        if not analysis_file.exists():
+            print(f"Error: {analysis_file} does not exist. Make sure to run the main analysis first.")
+            return
+
+        gdf = gpd.read_file(analysis_file)
+        
+        if 'nutzung' not in gdf.columns:
+            print("Error: 'Nutzung' column not found in the analysis file.")
+            return
+
+        nutzung_stats = []
+        for nutzung, group in gdf.groupby('nutzung'):
+            total_parcels = len(group)
+            low_recall_parcels = len(group[group['recall'] < 0.7])
+            avg_recall = group['recall'].mean()
+            
+            nutzung_stats.append({
+                'Nutzung': nutzung,
+                'Average Recall': avg_recall,
+                'Total Parcels': total_parcels,
+                'Low-Recall Parcels': low_recall_parcels,
+                'Percentage Low-Recall': (low_recall_parcels / total_parcels) * 100 if total_parcels > 0 else 0
+            })
+
+        # Convert to DataFrame and sort by percentage of low-recall parcels
+        df_stats = pd.DataFrame(nutzung_stats)
+        df_stats = df_stats.sort_values('Percentage Low-Recall', ascending=False)
+
+        # Select top 20 Nutzung types
+        top_20_nutzung = df_stats.head(20)
+
+        # Save to CSV
+        output_file = self.output_dir / "nutzung_recall_analysis.csv"
+        top_20_nutzung.to_csv(output_file, index=False)
+        print(f"Nutzung recall analysis saved to {output_file}")
+
 
 # Usage example:
 # evaluator = ParcelEvaluator('path/to/original/data', 'path/to/predicted/data')

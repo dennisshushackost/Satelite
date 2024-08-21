@@ -13,6 +13,7 @@ from helpers.satellite import ProcessSatellite
 from helpers.parcels import ProcessParcels
 from helpers.mask import ProcessMask
 from helpers.dataset import CreateTensorflowDataset
+from helpers.delete  import RemoveImages
 list_of_cantons = ['CH']
 base_path = "/workspaces/Satelite/data/" # Path to the data folder containing the CH.gpkg file and the CH.geojson file
 cell_size = 2500 # Size of the grid cells in meters (2500m = 2.5km)
@@ -49,6 +50,12 @@ def create_satellite(canton: str):
                 process.select_min_coverage_scene()
             except Exception as e:
                 continue
+        
+def delete_satellite_images():
+    path_gpkg = f"{base_path}/{canton}.gpkg"
+    remover = RemoveImages(path_gpkg)
+    deleted = remover.execute()
+    print(f"Deleted files: {deleted}")
     
 def create_parcels(canton: str, trimmed, upscaling, combine_adjacent=True):
     path_gpkg = f"{base_path}/{canton}.gpkg"
@@ -84,14 +91,15 @@ def create_tensorflow_datasets():
     
 
 def process_switzerland(canton: str):
-    simplify_data(canton)
-    create_grid(canton)
-    create_satellite(canton)  # This will block until all satellite tasks are finished
+    #simplify_data(canton)
+    #create_grid(canton)
+    #create_satellite(canton)  # This will block until all satellite tasks are finished
+    delete_satellite_images()
     #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=False)   
     #create_parcels(canton, trimmed=False, combine_adjacent=True, upscaling=True)    # 
     #create_mask(canton, scaled=False)      # Create masks with upscaled satellite images
     #create_mask(canton, scaled=True)       # Create masks with upscaled satellite imagesq
-    #time.sleep(10)
+    time.sleep(10)
     #create_tensorflow_datasets()
 
 if __name__ == "__main__":

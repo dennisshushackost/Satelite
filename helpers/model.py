@@ -321,6 +321,6 @@ def attunet(input_shape, NUM_CLASSES=1, dropout_rate=0.0, batch_norm=True):
 if __name__ == "__main__":
     # Test the model architectures
     input_shape = (256, 256, 4)
-    attunet(input_shape)
+    resunet(input_shape)
 
     

@@ -21,7 +21,8 @@ class TrainNetwork:
     """ 
     This class trains and evaluates the network.
     """
-    def __init__(self, dataset_path, augmentation, modelname, experiment_name, upscale=False):
+    def __init__(self, dataset_path, augmentation, modelname, experiment_name, experiment, upscale=False):
+        self.experiment = experiment
         self.dataset_path = dataset_path
         self.train_path = os.path.join(self.dataset_path, "train")
         self.test_path = os.path.join(self.dataset_path, "test")
@@ -92,7 +93,7 @@ class TrainNetwork:
     
     def record_experiment(self):
         base_path = Path(self.dataset_path).parent
-        eval_file = base_path / 'evaluation.csv'
+        eval_file = base_path / f'{self.experiment}_evaluation.csv'
         
         new_entry = {
             'experiment_name': self.experiment_name,
