@@ -7,7 +7,7 @@ from helpers.train import TrainNetwork
 
 def experiment_1(models, data_set_path, data_set_path_upscaled):
     for model_name in models:
-        for augmentation in [True, False]:
+        for augmentation in [False]:
             for upscale in [True, False]:
                 dataset_path = data_set_path_upscaled if upscale else data_set_path
                 experiment_name = f'{model_name}_upscale_{upscale}_augmentation_{augmentation}'
@@ -23,7 +23,7 @@ def experiment_1(models, data_set_path, data_set_path_upscaled):
                 )
 
 # Example usage:
-models_to_test = ['unet']  
+models_to_test = ['attunet']  
 data_set_path = "/workspaces/Satelite/data/dataset_upscaled_False"
 data_set_path_upscaled = "/workspaces/Satelite/data/dataset_upscaled_True"
 
